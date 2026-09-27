@@ -3,6 +3,7 @@
 Jogo de mímica em tabuleiro, feito como um único arquivo HTML (`mimica.html`), pensado pra abrir direto no navegador de um tablet — sem instalar nada.
 
 - **App publicado (sempre a versão mais atual):** https://claude.ai/code/artifact/c140dd17-628d-4f85-9428-f2a2d3ab12e3
+- **App instalável (celular/tablet) — link pros amigos:** https://brulogom.github.io/tabuleiro-da-mimica/ (repositório: https://github.com/brulogom/tabuleiro-da-mimica — ver seção 8)
 - **Arquivo fonte local:** `mimica.html` (nesta mesma pasta) — é uma cópia de segurança da última versão publicada.
 
 > Para continuar editando numa próxima conversa com o Claude, basta abrir esta pasta e dizer o que quer mudar. Cole a URL do artifact acima se o Claude precisar reidentificar o link publicado.
