@@ -1,0 +1,1992 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FF5A36">
+<meta name="description" content="Jogo de mímica em tabuleiro para jogar em equipes.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mímica">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>body{margin:0;}</style>
+<script>
+(function(){
+  if (window.claude && typeof window.claude.use === "function") return;
+  var KEY = "mimica:categories/words";
+  var listeners = [];
+  function read(){ try { var raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; } catch(e){ return null; } }
+  function write(data){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e){} }
+  function snap(){ var d = read(); return { exists: !!d, data: function(){ return d; } }; }
+  var doc = {
+    get: function(){ return Promise.resolve(snap()); },
+    set: function(data){ write(data); return Promise.resolve(); },
+    update: function(patch){ var d = read() || {}; Object.keys(patch).forEach(function(k){ d[k] = patch[k]; }); write(d); return Promise.resolve(); },
+    onSnapshot: function(cb){ listeners.push(cb); return function(){}; }
+  };
+  window.claude = { use: function(name){ return Promise.resolve(name === "db" ? { doc: function(){ return doc; } } : null); } };
+})();
+</script>
+<title>Tabuleiro da Mímica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#EEF0E6;
+    --surface:#FFFFFF;
+    --surface-2:#E3E6D6;
+    --text:#1E2A22;
+    --text-muted:#5B6656;
+    --border:#D3D6C4;
+    --accent:#FF5A36;
+    --accent-ink:#FFFFFF;
+    --danger:#C94A42;
+    --ok:#3E8E52;
+
+    --c-lugar:#3B7EA1;
+    --c-animal:#4C9A5B;
+    --c-famosos:#D9A22B;
+    --c-filmes:#C94A42;
+    --c-musica:#C85A96;
+    --c-profissoes:#D97F35;
+    --c-esportes:#7C5FB5;
+    --c-expressoes:#2F9C97;
+    --c-comidas:#8A5A3B;
+    --c-frases:#5C7A38;
+    --c-aleatoria:#4A4A55;
+    --c-special:#B8901F;
+
+    --board-bg:#183226;
+    --board-track:#22462F;
+    --board-text:#F4F1DF;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12201A;
+      --surface:#1B2B23;
+      --surface-2:#223428;
+      --text:#EDF1E6;
+      --text-muted:#9FAE97;
+      --border:#2E4235;
+      --accent:#FF6A47;
+      --accent-ink:#12201A;
+      --danger:#E27168;
+      --ok:#57B36C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12201A;
+    --surface:#1B2B23;
+    --surface-2:#223428;
+    --text:#EDF1E6;
+    --text-muted:#9FAE97;
+    --border:#2E4235;
+    --accent:#FF6A47;
+    --accent-ink:#12201A;
+    --danger:#E27168;
+    --ok:#57B36C;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Manrope',system-ui,sans-serif;
+    padding:18px 16px 40px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    min-height:100vh;
+  }
+  h1,h2,h3{font-family:'Baloo 2','Manrope',system-ui,sans-serif; margin:0; text-wrap:balance;}
+  button{font-family:inherit; cursor:pointer;}
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline:3px solid var(--accent); outline-offset:2px;
+  }
+
+  .wrap{max-width:1180px; margin:0 auto; width:100%; display:flex; flex-direction:column; gap:16px;}
+
+  header.app-header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .mark{
+    width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-ink);
+    display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+  }
+  .brand h1{font-size:1.5rem; font-weight:800; letter-spacing:.2px;}
+  .brand p{margin:0; font-size:.8rem; color:var(--text-muted); font-weight:600;}
+  .ghost-btn{
+    background:transparent; border:1.5px solid var(--border); color:var(--text-muted);
+    padding:8px 14px; border-radius:10px; font-weight:700; font-size:.85rem;
+  }
+  .ghost-btn:hover{border-color:var(--accent); color:var(--accent);}
+  .exit-btn{align-self:flex-start;}
+  .ghost-btn:disabled{opacity:.45; cursor:not-allowed;}
+  .ghost-btn:disabled:hover{border-color:var(--border); color:var(--text-muted);}
+  .header-actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+  .word-list{display:flex; flex-wrap:wrap; gap:6px;}
+  .word-chip{display:inline-flex; align-items:center; gap:6px; color:#fff; padding:6px 6px 6px 12px; border-radius:999px; font-weight:700; font-size:.82rem;}
+  .word-chip.is-filtered-out{opacity:.25;}
+  .word-x{background:rgba(0,0,0,.25); border:none; color:#fff; width:20px; height:20px; border-radius:50%; font-size:.85rem; line-height:1; padding:0;}
+  .word-x:hover{background:rgba(0,0,0,.45);}
+  .add-word-row{display:flex; gap:8px;}
+  .add-word-row input{
+    flex:1; min-width:0; border:1.5px solid var(--border); border-radius:10px; padding:10px 12px;
+    font-size:.95rem; background:var(--surface); color:var(--text); font-weight:600;
+  }
+  .add-word-row input:focus{border-color:var(--accent);}
+
+  /* ---------- SETUP SCREEN ---------- */
+  .setup-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:28px; display:flex; flex-direction:column; gap:22px;
+  }
+  .setup-card h2{font-size:1.3rem;}
+  .setup-card .lede{color:var(--text-muted); font-size:.92rem; margin-top:4px; max-width:60ch;}
+  .field-group{display:flex; flex-direction:column; gap:10px;}
+  .field-label{font-weight:800; font-size:.8rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
+  .chip-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .chip{
+    border:1.5px solid var(--border); background:var(--surface-2); color:var(--text);
+    padding:8px 16px; border-radius:999px; font-weight:700; font-size:.9rem;
+  }
+  .chip.is-active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .team-rows{display:flex; flex-direction:column; gap:14px;}
+  .team-row-block{display:flex; flex-direction:column; gap:8px;}
+  .team-row{display:flex; align-items:center; gap:10px;}
+  .team-dot{width:28px;height:28px;border-radius:50%; flex-shrink:0; border:2px solid rgba(0,0,0,.15);}
+  .color-swatch-row{display:flex; gap:8px; flex-wrap:wrap; padding-left:38px;}
+  .color-swatch-btn{
+    width:26px; height:26px; border-radius:50%; border:2px solid var(--border); padding:0; cursor:pointer;
+  }
+  .color-swatch-btn.is-selected{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent);}
+  .color-swatch-btn:disabled{opacity:.2; cursor:not-allowed;}
+  .team-row input{
+    flex:1; min-width:0; border:1.5px solid var(--border); border-radius:10px; padding:10px 12px;
+    font-size:.95rem; font-weight:700; background:var(--surface); color:var(--text);
+  }
+  .team-row input:focus{border-color:var(--accent);}
+  .start-btn{
+    background:var(--accent); color:var(--accent-ink); border:none; border-radius:14px;
+    padding:16px 20px; font-size:1.05rem; font-weight:800; align-self:flex-start;
+  }
+  .start-btn:hover{filter:brightness(1.06);}
+  .start-btn:disabled{cursor:not-allowed;}
+  .start-btn:disabled:hover{filter:none;}
+
+  /* ---------- GAME SCREEN ---------- */
+  .board-screen{ display:flex; flex-direction:column; gap:14px; width:100%; }
+  .board-main{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+  @media (min-width:800px){
+    .board-screen{ flex-direction:row; align-items:flex-start; }
+    .board-main{ flex:1; min-width:0; }
+  }
+  .category-legend{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:14px; display:flex; flex-direction:column; gap:8px; flex-shrink:0;
+  }
+  @media (min-width:800px){ .category-legend{ width:190px; position:sticky; top:16px; } }
+  .legend-item{ display:flex; align-items:center; gap:8px; font-size:.82rem; font-weight:700; }
+  .legend-swatch{
+    width:26px; height:26px; border-radius:8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:1rem; color:#fff;
+  }
+  .stage-screen{ display:flex; flex-direction:column; gap:14px; width:100%; align-items:stretch; }
+
+  .board-panel{
+    background:var(--board-bg); border-radius:20px; padding:18px; overflow-x:auto;
+  }
+  .board-title{color:var(--board-text); font-weight:800; font-size:.95rem; margin:0 0 12px 4px; display:flex; justify-content:space-between; align-items:center;}
+  .board-title span.sub{color:#B7C9BC; font-weight:600; font-size:.8rem;}
+  .board-grid{
+    display:grid; grid-template-columns:repeat(6, 1fr); grid-auto-rows:58px; gap:6px; position:relative;
+    background:var(--board-track); border-radius:16px; padding:12px;
+  }
+  .house{
+    width:100%; height:100%; box-sizing:border-box; min-width:0;
+    border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; position:relative; font-size:.68rem; line-height:1.1; gap:1px;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.18);
+  }
+  .house .num{font-family:'Baloo 2'; font-size:.9rem;}
+  .house .ic{font-size:1rem;}
+  .house.is-start, .house.is-finish{
+    background:var(--accent); color:var(--accent-ink); font-family:'Baloo 2'; font-size:.72rem;
+  }
+  .house.is-current-target{box-shadow:0 0 0 2px #fff;}
+  .dir-arrow{
+    position:absolute; top:1px; right:2px;
+    font-size:1.05rem; font-weight:800; line-height:1; color:rgba(255,255,255,.95);
+    text-shadow:0 1px 1px rgba(0,0,0,.4); pointer-events:none; z-index:2;
+  }
+  .pawns{
+    position:absolute; bottom:2px; left:0; display:flex; gap:2px; flex-wrap:wrap;
+    justify-content:center; width:100%; pointer-events:none; z-index:2;
+  }
+  .pawn{width:11px;height:11px;border-radius:50%; border:1.5px solid rgba(255,255,255,.9); box-shadow:0 0 0 1px rgba(0,0,0,.25);}
+  .pawn-pin{
+    width:15px; height:15px; flex-shrink:0;
+    border-radius:50% 50% 50% 0; transform:rotate(-45deg);
+    border:1.5px solid rgba(255,255,255,.95); box-shadow:0 1px 3px rgba(0,0,0,.45);
+  }
+  @media (max-width:480px){
+    .board-grid{grid-auto-rows:46px; gap:4px; padding:8px;}
+  }
+
+  .board-action{display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;}
+  .board-action-msg{font-weight:700; color:var(--text-muted); font-size:.95rem;}
+
+  .turn-banner{
+    display:flex; align-items:center; gap:12px; border-radius:14px; padding:12px 14px;
+    color:#fff; font-family:'Baloo 2'; font-size:1.05rem;
+  }
+  .turn-banner .pawn-lg{width:20px;height:20px;border-radius:50%; border:2px solid rgba(255,255,255,.85); flex-shrink:0;}
+  .turn-banner .pos{margin-left:auto; font-size:.8rem; font-family:'Manrope'; font-weight:700; opacity:.9;}
+
+  .target-chip{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px;
+    border:1.5px dashed var(--border); font-weight:700; font-size:.9rem;
+  }
+  .target-chip .swatch{width:30px;height:30px;border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1rem; color:#fff; flex-shrink:0;}
+  .target-chip .lbl{color:var(--text-muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; font-weight:800;}
+  .target-chip .name{font-size:1rem;}
+
+  .stage{
+    background:var(--surface-2); border-radius:16px; padding:22px 18px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:14px; min-height:170px; justify-content:center;
+  }
+  .stage .prompt{color:var(--text-muted); font-weight:700; font-size:.95rem;}
+  .stage .word{font-family:'Baloo 2'; font-size:1.9rem; font-weight:800; text-wrap:balance; word-break:break-word;}
+  .stage .artist-hint{color:var(--text-muted); font-weight:700; font-size:.85rem; margin-top:-8px;}
+  .hint-toggle{
+    background:none; border:1.5px dashed var(--border); color:var(--text-muted); font-weight:700;
+    font-size:.8rem; border-radius:999px; padding:5px 12px;
+  }
+  .hint-toggle:hover{border-color:var(--accent); color:var(--accent);}
+  .hint-body{
+    color:var(--text-muted); font-weight:600; font-size:.85rem; line-height:1.4; max-width:38ch;
+    background:var(--surface); border-radius:10px; padding:10px 12px;
+  }
+  .stage-big{flex:1; min-height:min(60vh, 520px); padding:32px 20px; gap:20px;}
+  .stage-big .prompt{font-size:1.1rem;}
+  .stage-big .word{font-size:clamp(2.2rem, 7vw, 3.4rem);}
+  .stage-big .artist-hint{font-size:1rem;}
+  .stage-big .timer-wrap{max-width:360px; width:100%;}
+  .stage-big .result-btns{max-width:420px; width:100%;}
+  .reveal-btn{
+    background:var(--accent); color:var(--accent-ink); border:none; border-radius:12px;
+    padding:14px 22px; font-weight:800; font-size:1rem;
+  }
+  .timer-wrap{width:100%; display:flex; flex-direction:column; gap:6px;}
+  .timer-bar-track{width:100%; height:10px; background:var(--border); border-radius:999px; overflow:hidden;}
+  .timer-bar-fill{height:100%; background:var(--accent); border-radius:999px; transition:width .12s linear;}
+  .timer-num{font-family:'Baloo 2'; font-size:1.3rem; font-variant-numeric:tabular-nums;}
+  .result-btns{display:flex; gap:10px; width:100%;}
+  .result-btns button{
+    flex:1; border:none; border-radius:12px; padding:13px 10px; font-weight:800; font-size:.92rem; color:#fff;
+  }
+  .btn-ok{background:var(--ok);}
+  .btn-skip{background:var(--danger);}
+  .btn-continue{background:var(--accent); color:var(--accent-ink); width:100%; border:none; border-radius:12px; padding:13px 10px; font-weight:800;}
+
+  .scoreboard{display:flex; flex-direction:column; gap:8px;}
+  .scoreboard .lbl{font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; font-weight:800; color:var(--text-muted);}
+  .score-row{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; font-weight:700; font-size:.85rem;}
+  .score-row.is-current{background:var(--surface-2);}
+  .score-row .pawn{width:14px;height:14px; flex-shrink:0;}
+  .score-row .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .score-row .pn{color:var(--text-muted); font-variant-numeric:tabular-nums;}
+
+  .rules-toggle{background:none; border:none; color:var(--text-muted); font-weight:700; font-size:.8rem; text-align:left; padding:0; text-decoration:underline;}
+  .rules-body{font-size:.85rem; color:var(--text-muted); line-height:1.5; display:flex; flex-direction:column; gap:6px;}
+  .rules-body b{color:var(--text);}
+
+  /* ---------- MODALS ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(10,15,12,.55); display:flex; align-items:center; justify-content:center;
+    padding:20px; z-index:50;
+  }
+  .modal-card{
+    background:var(--surface); border-radius:18px; padding:26px; max-width:420px; width:100%;
+    display:flex; flex-direction:column; gap:14px; text-align:center;
+  }
+  .modal-card h3{font-size:1.4rem;}
+  .modal-card-wide{max-width:480px;}
+  .team-report-list{display:flex; flex-direction:column; gap:10px; max-height:min(50vh, 420px); overflow-y:auto; text-align:left;}
+  .team-report-row{background:var(--surface-2); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:6px;}
+  .team-report-head{display:flex; align-items:center; gap:8px; font-family:'Baloo 2'; font-weight:700; font-size:1rem;}
+  .team-report-stats{display:flex; gap:14px; font-weight:700; font-size:.88rem; font-variant-numeric:tabular-nums;}
+  .team-report-cats{display:flex; flex-direction:column; gap:2px; font-size:.82rem; color:var(--text-muted); font-weight:600;}
+  .cat-pick-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .cat-pick-btn{
+    border:none; border-radius:12px; padding:12px 8px; color:#fff; font-weight:800; font-size:.85rem;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .cat-pick-btn small{font-weight:700; font-size:.68rem; opacity:.9; text-transform:none;}
+  .confetti-emoji{font-size:2.6rem;}
+
+  [hidden]{display:none !important;}
+
+  @media (max-width:480px){
+    .brand h1{font-size:1.25rem;}
+  }
+</style>
+
+<style>
+  body{padding-top:max(18px, env(safe-area-inset-top)); padding-left:max(16px, env(safe-area-inset-left)); padding-right:max(16px, env(safe-area-inset-right)); padding-bottom:max(40px, env(safe-area-inset-bottom));}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app-header">
+    <div class="brand">
+      <div class="mark">🎭</div>
+      <div>
+        <h1>Tabuleiro da Mímica</h1>
+        <p>Cada acerto anda 1 casa</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="ghost-btn" id="btnManage">📋 Gerenciar palavras</button>
+    </div>
+  </header>
+
+  <section id="setupScreen"></section>
+  <section id="gameScreen" hidden></section>
+  <section id="manageScreen" hidden></section>
+</div>
+
+<div id="modalLayer"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CATS = {
+    lugar:      {label:"Lugar",                 icon:"🌍", color:"var(--c-lugar)"},
+    animal:     {label:"Animal",                icon:"🐾", color:"var(--c-animal)"},
+    famosos:    {label:"Pessoas Famosas",        icon:"⭐", color:"var(--c-famosos)"},
+    filmes:     {label:"Filmes/Séries/Novelas",  icon:"🎬", color:"var(--c-filmes)"},
+    musica:     {label:"Música",                 icon:"🎵", color:"var(--c-musica)"},
+    profissoes: {label:"Profissões",             icon:"💼", color:"var(--c-profissoes)"},
+    esportes:   {label:"Esportes/Ações",         icon:"⚽", color:"var(--c-esportes)"},
+    expressoes: {label:"Expressões/Emoções",     icon:"😀", color:"var(--c-expressoes)"},
+    comidas:    {label:"Comidas/Bebidas",        icon:"🍕", color:"var(--c-comidas)"},
+    frases:     {label:"Frases Populares",       icon:"🗣️", color:"var(--c-frases)"},
+    aleatoria:  {label:"Aleatória",              icon:"🎲", color:"var(--c-aleatoria)"}
+  };
+
+  var DEFAULT_WORDS = {
+    lugar: [
+      "Praia","Hospital","Aeroporto","Academia","Cinema","Escola","Restaurante","Zoológico","Supermercado","Igreja","Praça","Shopping","Floresta","Deserto","Circo","Fazenda","Biblioteca","Estádio","Metrô","Elevador","Casamento","Trânsito","Acampamento","Parque de diversões","Salão de beleza","Consultório odontológico","Delegacia","Feira livre",
+      "Afeganistão","África do Sul","Albânia","Alemanha","Andorra","Angola","Antígua e Barbuda","Arábia Saudita","Argélia","Argentina","Armênia","Austrália","Áustria","Azerbaijão","Bahamas","Bangladesh","Barbados","Barein","Bélgica","Belize","Benin","Bielorrússia","Bolívia","Bósnia e Herzegovina","Botsuana","Brasil","Brunei","Bulgária","Burkina Faso","Burundi","Butão","Cabo Verde","Camarões","Camboja","Canadá","Catar","Cazaquistão","Chade","Chile","China","Chipre","Colômbia","Comores","Congo","Coreia do Norte","Coreia do Sul","Costa do Marfim","Costa Rica","Croácia","Cuba","Dinamarca","Djibouti","Dominica","Egito","El Salvador","Emirados Árabes Unidos","Equador","Eritreia","Eslováquia","Eslovênia","Espanha","Estados Unidos","Estônia","Essuatíni","Etiópia","Fiji","Filipinas","Finlândia","França","Gabão","Gâmbia","Gana","Geórgia","Granada","Grécia","Guatemala","Guiana","Guiné","Guiné Equatorial","Guiné-Bissau","Haiti","Holanda","Honduras","Hungria","Iêmen","Ilhas Marshall","Ilhas Salomão","Índia","Indonésia","Irã","Iraque","Irlanda","Islândia","Israel","Itália","Jamaica","Japão","Jordânia","Kiribati","Kuwait","Laos","Lesoto","Letônia","Líbano","Libéria","Líbia","Liechtenstein","Lituânia","Luxemburgo","Macedônia do Norte","Madagascar","Malásia","Malawi","Maldivas","Mali","Malta","Marrocos","Maurício","Mauritânia","México","Mianmar","Micronésia","Moçambique","Moldávia","Mônaco","Mongólia","Montenegro","Namíbia","Nauru","Nepal","Nicarágua","Níger","Nigéria","Noruega","Nova Zelândia","Omã","Palau","Panamá","Papua-Nova Guiné","Paquistão","Paraguai","Peru","Polônia","Portugal","Quênia","Quirguistão","Reino Unido","República Centro-Africana","República Dominicana","República Tcheca","Romênia","Ruanda","Rússia","Samoa","San Marino","Santa Lúcia","São Cristóvão e Névis","São Tomé e Príncipe","São Vicente e Granadinas","Seicheles","Senegal","Serra Leoa","Sérvia","Singapura","Síria","Somália","Sri Lanka","Sudão","Sudão do Sul","Suécia","Suíça","Suriname","Tailândia","Taiwan","Tajiquistão","Tanzânia","Timor-Leste","Togo","Tonga","Trinidad e Tobago","Tunísia","Turcomenistão","Turquia","Tuvalu","Ucrânia","Uganda","Uruguai","Uzbequistão","Vanuatu","Vaticano","Venezuela","Vietnã","Zâmbia","Zimbábue",
+      "Acre","Alagoas","Amapá","Amazonas","Bahia","Ceará","Distrito Federal","Espírito Santo","Goiás","Maranhão","Mato Grosso","Mato Grosso do Sul","Minas Gerais","Pará","Paraíba","Paraná","Pernambuco","Piauí","Rio de Janeiro","Rio Grande do Norte","Rio Grande do Sul","Rondônia","Roraima","Santa Catarina","São Paulo","Sergipe","Tocantins",
+      "Washington","Pequim","Tóquio","Berlim","Nova Delhi","Londres","Paris","Roma","Ottawa","Moscou","Seul","Camberra","Madrid","Cidade do México","Jacarta","Amsterdã","Riade","Buenos Aires","Cairo","Pretória",
+      "Brasília","Salvador","Fortaleza","Belo Horizonte","Manaus","Curitiba","Recife","Goiânia","Belém","Porto Alegre","Guarulhos","Campinas","São Luís","São Gonçalo","Maceió","Duque de Caxias","Natal","Teresina","Campo Grande","Nova Iguaçu","São Bernardo do Campo","João Pessoa","Santo André","Jaboatão dos Guararapes","Osasco","São José dos Campos","Ribeirão Preto","Uberlândia","Contagem","Sorocaba","Aracaju","Feira de Santana","Cuiabá","Joinville","Juiz de Fora","Londrina","Aparecida de Goiânia","Ananindeua","Niterói","Porto Velho","Serra","Caxias do Sul","Vila Velha","Florianópolis","Macapá","Mauá","São João de Meriti","Diadema","Vitória","Palmas",
+      "Torre Eiffel","Cristo Redentor","Estátua da Liberdade","Muralha da China","Coliseu","Torre de Pisa","Pirâmides do Egito","Big Ben","Taj Mahal","Machu Picchu","Ópera de Sydney","Sagrada Família","Stonehenge","Monte Rushmore","Muro de Berlim",
+      "Banco","Farmácia","Posto de gasolina","Correios","Museu","Teatro","Boliche","Sauna","Spa","Estacionamento","Oficina mecânica","Lavanderia","Parque aquático","Porto","Estação de trem",
+      "Vulcão","Cachoeira","Caverna","Geleira","Savana","Ilha deserta"
+    ],
+    animal: ["Cobra","Canguru","Elefante","Pinguim","Girafa","Macaco","Tartaruga","Águia","Sapo","Coelho","Tubarão","Polvo","Camelo","Preguiça","Morcego","Galinha","Cavalo","Gorila","Urso","Borboleta","Pato","Leão","Foca","Caranguejo","Abelha","Rinoceronte","Papagaio","Jacaré","Formiga","Coruja","Zebra","Hipopótamo","Onça-pintada","Lobo","Raposa","Esquilo","Ouriço","Guaxinim","Lontra","Castor","Camundongo","Porco","Vaca","Cabra","Carneiro","Pavão","Avestruz","Flamingo","Pelicano","Cisne","Corvo","Pomba","Beija-flor","Libélula","Grilo","Gafanhoto","Aranha","Escorpião","Lesma","Caracol","Baleia","Golfinho","Estrela-do-mar","Água-viva","Lula","Piranha","Iguana","Camaleão","Hiena","Tigre","Chita","Lince","Texugo","Ornitorrinco","Coala","Panda","Tamanduá","Tatu","Capivara","Mico-leão-dourado","Arara","Tucano","Sabiá","Puma","Lebre","Furão","Doninha","Marta","Bisão","Búfalo","Alce","Rena","Veado","Javali","Ganso","Peru","Codorna","Andorinha","Pardal","Gaivota","Urubu","Falcão","Gavião","Morsa","Orca","Cachalote","Peixe-espada","Cavalo-marinho","Arraia","Baiacu","Pulga","Mosquito","Barata","Joaninha","Vaga-lume","Louva-a-deus","Centopeia","Lacraia","Sanguessuga","Ouriço-do-mar","Cágado","Jiboia","Píton","Naja","Víbora","Dragão de Komodo","Girino","Toupeira","Gambá","Quati","Jaguatirica","Chimpanzé","Orangotango"],
+    famosos: ["Anitta","Neymar","Silvio Santos","Xuxa","Ronaldinho Gaúcho","Gisele Bündchen","Pelé","Ayrton Senna","Chaves","Michael Jackson","Charlie Chaplin","Albert Einstein","Cristiano Ronaldo","Whindersson Nunes","Ivete Sangalo","Pabllo Vittar","Sabrina Sato","Luciano Huck","Gusttavo Lima","Fernanda Montenegro","Roberto Carlos","Zico","Madonna","Elvis Presley","Larissa Manoela","Romário","Ronaldo Fenômeno","Kaká","Garrincha","Sócrates","Rubens Barrichello","Lionel Messi","Kobe Bryant","LeBron James","Michael Jordan","Bruna Marquezine","Juliette Freire","Fátima Bernardes","Faustão","Rodrigo Faro","Marcos Mion","Angélica","Tiago Leifert","Marília Mendonça","Wesley Safadão","Simone Mendes","Beyoncé","Taylor Swift","Lady Gaga","Rihanna","Freddie Mercury","John Lennon","Marilyn Monroe","Vinícius Jr.","Rafael Nadal","Roger Federer","Usain Bolt","Serena Williams","Simone Biles","Falcão","Marta","Rebeca Andrade","Susana Vieira","Regina Duarte","Tony Ramos","Camila Queiroz","José Loreto","Boninho","Ana Maria Braga","Patrícia Poeta","Ludmilla","Zezé Di Camargo","Michael Bublé","Ariana Grande","Bruno Mars","Ed Sheeran","Shakira","Selena Gomez","Justin Timberlake","Casimiro","Felipe Neto","Kéfera","MC Bin Laden","Diego Maradona","Muhammad Ali","Michael Phelps","Babe Ruth","Tiger Woods","Wayne Gretzky","Jesse Owens","Mike Tyson","Nadia Comăneci","Carl Lewis","Michael Schumacher","Emerson Fittipaldi","Nelson Piquet","Felipe Massa","Gustavo Kuerten","César Cielo","Daiane dos Santos","Robert Scheidt","Rayssa Leal","Arthur Zanetti","Oscar Schmidt","Hortência","Formiga","Vanderlei Cordeiro de Lima"],
+    filmes: ["Titanic","Avatar","Vingadores","Toy Story","Friends","Stranger Things","La Casa de Papel","Chaves","Avenida Brasil","A Fazenda","O Auto da Compadecida","Cidade de Deus","Tropa de Elite","Shrek","Frozen","Harry Potter","O Rei Leão","Game of Thrones","Breaking Bad","Senhor dos Anéis","Jurassic Park","Star Wars","Velozes e Furiosos","Pantanal","A Grande Família","Malhação","Turma da Mônica","Batman","Homem-Aranha","De Volta para o Futuro","Matrix","Rocky","Coringa","Pantera Negra","A Origem","Interestelar","E.T.","Tubarão","Piratas do Caribe","Como Treinar o Seu Dragão","Divertida Mente","Procurando Nemo","Wall-E","Up: Altas Aventuras","Viva - A Vida é uma Festa","Encanto","Moana","Round 6","The Office","Grey's Anatomy","Sherlock","Peaky Blinders","Sex Education","Riverdale","Elite","Dark","Cobra Kai","Ozark","Cheias de Charme","Fina Estampa","Império","Vale Tudo","Escrava Isaura","A Dona do Pedaço","Cinderela","Branca de Neve e os Sete Anões","A Bela e a Fera","Aladdin","A Pequena Sereia","Mulan","Pocahontas","Hércules","Lilo & Stitch","Enrolados","Valente","Carros","Monstros S.A.","Ratatouille","Os Incríveis","Zootopia","Detona Ralph","A Princesa e o Sapo","Soul","Luca","Mulheres Apaixonadas","Senhora do Destino","América","Páginas da Vida","Duas Caras","A Favorita","Caminho das Índias","Viver a Vida","Salve Jorge","Amor à Vida","A Força do Querer","O Outro Lado do Paraíso","Amor de Mãe","Nos Tempos do Imperador","Um Lugar ao Sol","Travessia","Vai na Fé"],
+    musica: ["Aquarela (Toquinho)","Evidências (Chitãozinho & Xororó)","Garota de Ipanema (Tom Jobim)","Ai Se Eu Te Pego (Michel Teló)","Envolver (Anitta)","Show das Poderosas (Anitta)","Anunciação (Alceu Valença)","Asa Branca (Luiz Gonzaga)","Deixa a Vida Me Levar (Zeca Pagodinho)","Trem Bala (Ana Vilela)","Vida Loka (Racionais MC's)","Borboletas (Marcelo Falcão)","Vai Malandra (Anitta)","Cheia de Manias (Raça Negra)","Segue o Seu Coração (Roberta Campos)","Balada Boa (Gusttavo Lima)","Ciranda Cirandinha (Domínio público)","Atirei o Pau no Gato (Domínio público)","Parabéns a Você (Domínio público)","Águas de Março (Tom Jobim)","Mas Que Nada (Jorge Ben Jor)","País Tropical (Jorge Ben Jor)","Chuva de Arroz (Bruno & Marrone)","O Portão (Jorge & Mateus)","Trem das Onze (Demônios da Garoa)","Como É Grande o Meu Amor Por Você (Roberto Carlos)","Fico Assim Sem Você (Claudinho & Buchecha)","É o Amor (Zezé Di Camargo & Luciano)","Faroeste Caboclo (Legião Urbana)","Alô, Alô Marciano (Rita Lee)","Sozinho (Caetano Veloso)","Amor de Índio (Beto Guedes)","Anna Julia (Los Hermanos)","Tempo Perdido (Legião Urbana)","Metamorfose Ambulante (Raul Seixas)","O Tempo Não Para (Cazuza)","Alagados (Os Paralamas do Sucesso)","Pais e Filhos (Legião Urbana)","Toda Forma de Amor (Lulu Santos)","Eduardo e Mônica (Legião Urbana)","Que País É Esse (Legião Urbana)","Comida (Titãs)","Berimbau (Baden Powell)","Construção (Chico Buarque)","Aquele Abraço (Gilberto Gil)","Chega de Saudade (João Gilberto)","Xote das Meninas (Luiz Gonzaga)","Danone (Ivete Sangalo)","Anjos (Fábio Jr.)","Shape of You (Ed Sheeran)","Bohemian Rhapsody (Queen)","Billie Jean (Michael Jackson)","Someone Like You (Adele)","Rolling in the Deep (Adele)","Uptown Funk (Bruno Mars)","Shake It Off (Taylor Swift)","Despacito (Luis Fonsi)","Old Town Road (Lil Nas X)","Blinding Lights (The Weeknd)","Livin' on a Prayer (Bon Jovi)","Sweet Child O' Mine (Guns N' Roses)","I Want It That Way (Backstreet Boys)","Wannabe (Spice Girls)","Thriller (Michael Jackson)","Imagine (John Lennon)","Hotel California (Eagles)","Stairway to Heaven (Led Zeppelin)","My Heart Will Go On (Celine Dion)","Like a Virgin (Madonna)","Toxic (Britney Spears)","Someone You Loved (Lewis Capaldi)","Viva la Vida (Coldplay)","Poker Face (Lady Gaga)","Happy (Pharrell Williams)","Roar (Katy Perry)","We Will Rock You (Queen)","Dancing Queen (ABBA)","Waka Waka (Shakira)","Yesterday (The Beatles)","Let It Be (The Beatles)","Hey Jude (The Beatles)","Smells Like Teen Spirit (Nirvana)","Wonderwall (Oasis)","(I Can't Get No) Satisfaction (The Rolling Stones)","Purple Rain (Prince)","Like a Rolling Stone (Bob Dylan)","Respect (Aretha Franklin)","I Will Always Love You (Whitney Houston)","Rehab (Amy Winehouse)","Umbrella (Rihanna)","Halo (Beyoncé)","Single Ladies (Beyoncé)","Born This Way (Lady Gaga)","Levitating (Dua Lipa)","Watermelon Sugar (Harry Styles)","Shallow (Lady Gaga)","Bad Guy (Billie Eilish)","Bad Romance (Lady Gaga)","Firework (Katy Perry)","Party in the U.S.A. (Miley Cyrus)","Can't Stop the Feeling! (Justin Timberlake)","Sorry (Justin Bieber)","Baby (Justin Bieber)","Sicko Mode (Travis Scott)","God's Plan (Drake)","Africa (Toto)","Take on Me (a-ha)","Girls Just Want to Have Fun (Cyndi Lauper)","Eye of the Tiger (Survivor)","Another Brick in the Wall (Pink Floyd)","Smooth Criminal (Michael Jackson)","Beat It (Michael Jackson)","Faded (Alan Walker)","Closer (The Chainsmokers)","Counting Stars (OneRepublic)","Radioactive (Imagine Dragons)","Believer (Imagine Dragons)","Sugar (Maroon 5)","Moves Like Jagger (Maroon 5)","Can't Feel My Face (The Weeknd)","Rockstar (Post Malone)","Havana (Camila Cabello)","Señorita (Shawn Mendes & Camila Cabello)","Cheap Thrills (Sia)","Chandelier (Sia)","All of Me (John Legend)","Perfect (Ed Sheeran)","Yellow (Coldplay)","Let It Go / Livre Estou (Frozen)","Hakuna Matata (O Rei Leão)","A Whole New World / Um Mundo Ideal (Aladdin)","Under the Sea / Debaixo do Mar (A Pequena Sereia)","Colors of the Wind / Cores do Vento (Pocahontas)","You've Got a Friend in Me / Um Amigo Assim (Toy Story)","Try Everything / Tentar Tudo (Zootopia)","I See the Light / Ao Luar (Enrolados)","Reflection / Imagem (Mulan)","How Far I'll Go / Saber Quem Sou (Moana)","Into the Unknown / Minha Intuição (Frozen 2)","Beauty and the Beast / A Bela e a Fera (A Bela e a Fera)","Part of Your World / Parte do Seu Mundo (A Pequena Sereia)","Circle of Life / Ciclo Sem Fim (O Rei Leão)","Almost There / Quase Lá (A Princesa e o Sapo)","Breaking Free (High School Musical)","We're All in This Together (High School Musical)","Start of Something New (High School Musical)","Bop to the Top (High School Musical)","Can I Have This Dance? (High School Musical 3)","Best of Both Worlds (Hannah Montana)","This Is Me (Camp Rock)","Barbie Girl (Aqua)","Call Me Maybe (Carly Rae Jepsen)","Since U Been Gone (Kelly Clarkson)","Genie in a Bottle (Christina Aguilera)","...Baby One More Time (Britney Spears)","Oops!... I Did It Again (Britney Spears)","Everybody (Backstreet Boys)","Bye Bye Bye (NSYNC)","Complicated (Avril Lavigne)","Sk8er Boi (Avril Lavigne)","Boyfriend (Justin Bieber)","What Makes You Beautiful (One Direction)","Best Song Ever (One Direction)","We Don't Talk About Bruno / Não Falamos do Bruno (Encanto)","Can You Feel the Love Tonight / Nesta Noite o Amor Chegou (O Rei Leão)","Kiss the Girl / Beije a Moça (A Pequena Sereia)","Do You Want to Build a Snowman? / Quer Fazer um Boneco de Neve? (Frozen)","Love Is an Open Door / Vejo Uma Porta Abrir (Frozen)","Friend Like Me / Nunca Teve um Amigo Assim (Aladdin)","Go the Distance / Vencer Distâncias (Hércules)"],
+    profissoes: ["Médico","Bombeiro","Professor","Chef de cozinha","Advogado","Cabeleireiro","Policial","Piloto de avião","Dentista","Pintor","Eletricista","Encanador","Veterinário","Jornalista","Fotógrafo","Garçom","Motorista de ônibus","Enfermeiro","Padeiro","Costureira","Astronauta","Pescador","Agricultor","Detetive","Palhaço","Mecânico","DJ","Salva-vidas","Juiz","Arquiteto","Engenheiro","Psicólogo","Nutricionista","Fisioterapeuta","Farmacêutico","Biólogo","Contador","Bibliotecário","Tradutor","Ator","Marceneiro","Pedreiro","Soldador","Segurança","Recepcionista","Barbeiro","Personal trainer","Bailarino","Escritor","Programador","Cientista","Jardineiro","Locutor","Caminhoneiro","Sapateiro","Padre","Diplomata","Zootecnista","Geólogo","Meteorologista","Parteira","Motoboy","Taxista","Zelador","Confeiteiro","Sommelier","Barista","Ourives","Vidraceiro","Instrutor de autoescola","Guia turístico","Modelo","Estilista","Designer gráfico","Roteirista","Diretor de cinema","Produtor musical","Maestro","Analista de sistemas","Apicultor","Bancário","Corretor de imóveis","Corretor de seguros","Auditor","Delegado","Perito","Assistente social","Terapeuta","Fonoaudiólogo","Radiologista","Cardiologista","Cirurgião","Anestesista","Coreógrafo","Cenógrafo","Figurinista","Iluminador","Editor de vídeo","Streamer","Podcaster"],
+    esportes: ["Futebol","Nadar","Surfar","Vôlei","Bicicleta","Levantar peso","Basquete","Maratona","Pescar","Tênis","Pular corda","Balé","Boxe","Escalada","Xadrez","Equitação","Golfe","Yoga","Sinuca","Patinação no gelo","Flexão","Handebol","Kart","Capoeira","Futevôlei","Judô","Karatê","Taekwondo","Ginástica olímpica","Ciclismo","Remo","Canoagem","Triatlo","Skate","Snowboard","Esqui","Rúgbi","Polo aquático","Tênis de mesa","Badminton","Arco e flecha","Motocross","Automobilismo","Vela","Squash","Muay Thai","Jiu-jitsu","Vôlei de praia","Atletismo","Halterofilismo","Sumô","Wrestling","Curling","Hóquei no gelo","Paraquedismo","Slackline","Parkour","Stand up paddle","Windsurf","Kitesurf","Bodyboard","Boliche","Dominó","Pôquer","Damas","Corrida de rua","Ultramaratona","Decatlo","Bocha","Peteca","Frescobol","Malabarismo","Ginástica rítmica","Nado sincronizado","Salto em distância","Salto em altura","Salto triplo","Lançamento de dardo","Lançamento de disco","Lançamento de martelo","Arremesso de peso","Corrida de revezamento","Corrida com obstáculos","Ciclismo BMX","Mergulho","Hipismo","Polo","Críquete","Beisebol","Softbol","Futsal","Futebol americano","Frisbee","Rapel","Tirolesa"],
+    expressoes: ["Com raiva","Com sono","Apaixonado","Com medo","Envergonhado","Surpreso","Entediado","Nervoso","Aliviado","Com ciúmes","Orgulhoso","Confuso","Com dor de dente","Animado","Triste","Com fome","Com frio","Com calor","Com pressa","Enojado","Encantado","Desconfiado","Impaciente","Com saudade","Culpado","Com dor de barriga","Com dor nas costas","Com soluço","Com tontura","Com sede","Com preguiça","Bêbado","Com ressaca","Cansado","Assustado","Chocado","Curioso","Feliz","Deprimido","Ansioso","Estressado","Arrependido","Com dor de cabeça","Enjoado","Empolgado","Nostálgico","Distraído","Concentrado","Apavorado","Com calafrio","Com coceira","Resfriado","Gripado","Com febre","Com azia","Engasgado","Com cãibra","Zonzo","Atordoado","Perdido","Grato","Inseguro","Confiante","Tímido","Extrovertido","Solitário","Carente","Vingativo","Rancoroso","Aflito","Preocupado","Relaxado","Tranquilo","Furioso","Frustrado","Desanimado","Desmotivado","Motivado","Inspirado","Perplexo","Emocionado","Comovido","Sentimental","Romântico","Com medo de altura","Com claustrofobia","Com vertigem","Constrangido","Mortificado","Exausto","Esgotado","Sonolento","Resmungão","Rabugento","Mal-humorado","Bem-humorado","Alegre","Decepcionado","Chateado"],
+    comidas: ["Pizza","Sorvete","Café","Feijoada","Churrasco","Pipoca","Suco de laranja","Pão de queijo","Brigadeiro","Coxinha","Açaí","Chocolate quente","Água de coco","Macarrão","Sushi","Hambúrguer","Melancia","Vinho","Caipirinha","Milho verde","Bolo de aniversário","Marshmallow","Picanha","Salada","Cerveja","Refrigerante","Pastel","Tapioca","Mel","Lasanha","Risoto","Feijão tropeiro","Vatapá","Moqueca","Bobó de camarão","Pão de alho","Empanada","Taco","Pastel de nata","Croissant","Waffle","Panqueca","Torta de limão","Pudim","Mousse de chocolate","Cocada","Rapadura","Paçoca","Beijinho","Canjica","Whisky","Iogurte","Queijo","Presunto","Arroz","Feijão","Farofa","Espumante","Vodka","Tequila","Rum","Gim","Suco de uva","Suco de maracujá","Leite","Manteiga","Requeijão","Geleia","Granola","Aveia","Castanha","Amêndoa","Amendoim","Milkshake","Vitamina","Torta de frango","Empada","Kibe","Esfiha","Bacalhau","Camarão","Cachaça","Batida","Sagu","Arroz doce","Bolo de chocolate","Torta de maçã","Salgadinho","Pão francês","Bife","Frango grelhado","Peixe assado","Lagosta","Ostras","Vinho rosé","Vinagrete"],
+    frases: ["Chutar o balde","Pagar o pato","Engolir sapo","Quebrar o gelo","Dar com os burros n'água","Matar dois coelhos com uma cajadada","Dar zebra","Encher linguiça","Colocar a mão na massa","Segurar vela","Pisar em ovos","Chorar as pitangas","Pendurar as chuteiras","Bater as botas","Meter a colher","Passar a mão na cabeça","Fazer tempestade em copo d'água","Dar com a língua nos dentes","Vender o peixe","Chutar o pau da barraca","Comprar gato por lebre","Enfiar o pé na jaca","Fazer das tripas coração","Ficar a ver navios","Ir com a cara e a coragem","Levar a breca","Não ter papas na língua","Pisar na bola","Plantar bananeira","Pôr a mão no fogo","Pôr as barbas de molho","Quebrar a cara","Tirar o cavalinho da chuva","Vestir a camisa","Virar a casaca","Bater na mesma tecla","Cair a ficha","Dar o cano","Deixar a peteca cair","Encher o saco","Fazer vista grossa","Ir pelo caminho das pedras","Pisar em terreno minado","Tirar o time de campo"]
+  };
+  // Safety net: strip any accidental case-insensitive duplicates in the source lists.
+  Object.keys(DEFAULT_WORDS).forEach(function(k){
+    var seen = {};
+    DEFAULT_WORDS[k] = DEFAULT_WORDS[k].filter(function(w){
+      var key = w.toLowerCase();
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  });
+
+  var REAL_CAT_KEYS = Object.keys(CATS).filter(function(k){ return k !== "aleatoria"; });
+  var SPECIAL_TYPES = ["avance2","volte1","perdeVez","nada"];
+  var STEPS_OPTIONS = [15, 20, 30, 40, 50];
+
+  function randomSpecialType(){
+    return SPECIAL_TYPES[Math.floor(Math.random()*SPECIAL_TYPES.length)];
+  }
+  // Mystery houses hide their true nature — re-rolling it every time a
+  // team fails to get past one keeps it fresh for the next attempt.
+  function rerollSpecial(house){ house.sp = randomSpecialType(); }
+
+  // Lays out a fresh board template for a chosen board length: house 0 is
+  // the start, house `steps` is the finish, and a handful of mystery
+  // (special) houses are spread evenly among the rest, each starting with
+  // a random hidden nature — every other house is a plain category slot,
+  // its actual category decided later by buildEffectiveBoard.
+  function generateBoardTemplate(steps){
+    var len = steps + 1;
+    var arr = new Array(len);
+    arr[0] = {type:"start"};
+    arr[len-1] = {type:"finish"};
+    var specialCount = Math.max(2, Math.min(8, Math.round(steps/7)));
+    var specialAt = {};
+    for (var k=0;k<specialCount;k++){
+      var pos = Math.max(1, Math.min(steps-1, Math.round((k+1) * steps/(specialCount+1))));
+      while (specialAt[pos] && pos < steps-1) pos++;
+      specialAt[pos] = true;
+    }
+    for (var i=1;i<len-1;i++){
+      arr[i] = specialAt[i] ? {type:"special", sp:randomSpecialType()} : {type:"cat", cat:null};
+    }
+    return arr;
+  }
+
+  // Builds the game board for this match: every category house gets a
+  // freshly shuffled category (from what's enabled at setup) each time a
+  // game starts, evenly spread across the slots — only the finish line and
+  // special houses keep the template's fixed positions.
+  function hasAdjacentDup(arr){
+    for (var i=1;i<arr.length;i++){ if (arr[i] === arr[i-1]) return true; }
+    return false;
+  }
+  // Best-effort fix for any adjacent repeats a random shuffle left behind:
+  // swap each offender with a later slot that clashes with neither neighbor.
+  function repairAdjacentDups(arr){
+    var a = arr.slice();
+    for (var i=1;i<a.length;i++){
+      if (a[i] !== a[i-1]) continue;
+      for (var j=i+1;j<a.length;j++){
+        if (a[j] !== a[i-1]){
+          var t = a[i]; a[i] = a[j]; a[j] = t;
+          break;
+        }
+      }
+    }
+    return a;
+  }
+  // Shuffles while avoiding the same category landing on two houses in a
+  // row: retries a few random shuffles first, then falls back to a
+  // deterministic repair pass (only unavoidable when just one category is
+  // enabled, where adjacent repeats can't be helped).
+  function shuffleNoAdjacent(base){
+    if (base.length <= 1) return base.slice();
+    var arr = base;
+    for (var attempt=0; attempt<60; attempt++){
+      arr = shuffle(base);
+      if (!hasAdjacentDup(arr)) return arr;
+    }
+    return repairAdjacentDups(arr);
+  }
+
+  function buildEffectiveBoard(enabledCats, template){
+    var enabledReal = REAL_CAT_KEYS.filter(function(k){ return enabledCats[k]; });
+    if (!enabledReal.length) return null;
+    var pool = enabledReal.slice();
+    if (enabledCats.aleatoria) pool.push("aleatoria");
+    var catSlots = template.filter(function(h){ return h.type === "cat"; }).length;
+    var assignment = [];
+    for (var i=0;i<catSlots;i++){ assignment.push(pool[i % pool.length]); }
+    assignment = shuffleNoAdjacent(assignment);
+    var idx = 0;
+    return template.map(function(h){
+      if (h.type !== "cat") return h;
+      var cat = assignment[idx];
+      idx++;
+      return {type:"cat", cat:cat};
+    });
+  }
+
+  // Primary colors plus white/black, with pink and purple as the only
+  // extras — chosen explicitly per team so two teams never end up with
+  // near-identical colors (a problem with picking automatically).
+  var TEAM_COLOR_PALETTE = [
+    {hex:"#E03131", label:"Vermelho"},
+    {hex:"#1971C2", label:"Azul"},
+    {hex:"#F0B429", label:"Amarelo"},
+    {hex:"#FFFFFF", label:"Branco"},
+    {hex:"#1A1A1A", label:"Preto"},
+    {hex:"#E64980", label:"Rosa"},
+    {hex:"#7048E8", label:"Roxo"}
+  ];
+  function defaultTeamColor(i){ return TEAM_COLOR_PALETTE[i % TEAM_COLOR_PALETTE.length].hex; }
+  // Picks readable text color for a given team color background.
+  function contrastTextFor(hex){
+    var r = parseInt(hex.substr(1,2),16), g = parseInt(hex.substr(3,2),16), b = parseInt(hex.substr(5,2),16);
+    var lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return lum > 0.6 ? "#1A1A1A" : "#fff";
+  }
+  var TIMER_OPTIONS = [30,45,60,90];
+
+  var setupEl = document.getElementById("setupScreen");
+  var gameEl = document.getElementById("gameScreen");
+  var manageEl = document.getElementById("manageScreen");
+  var modalLayer = document.getElementById("modalLayer");
+  var btnManage = document.getElementById("btnManage");
+
+  // wordBank is the live, editable copy of DEFAULT_WORDS — synced with the
+  // artifact's shared database so every device sees the same lists.
+  var wordBank = cloneWords(DEFAULT_WORDS);
+
+  // Optional "ⓘ Dica" shown only to whoever is mimicking — a short memory
+  // jog for words whose meaning isn't obvious from the word itself. Filled
+  // in gradually, category by category; a missing entry just hides the
+  // button, so it's safe to leave most categories untouched.
+  var HINTS = {
+    frases: {
+      "Chutar o balde": "Desistir de tudo de uma vez, sem se importar com as consequências.",
+      "Pagar o pato": "Levar a culpa ou o castigo por algo que não fez.",
+      "Engolir sapo": "Aturar calado uma situação ruim ou humilhante.",
+      "Quebrar o gelo": "Aliviar uma situação tensa ou desconfortável entre pessoas.",
+      "Dar com os burros n'água": "Fracassar depois de se esforçar muito.",
+      "Matar dois coelhos com uma cajadada": "Resolver dois problemas com uma única ação.",
+      "Dar zebra": "Acontecer um resultado bem diferente do esperado.",
+      "Encher linguiça": "Enrolar, falar bastante sem dizer nada útil.",
+      "Colocar a mão na massa": "Trabalhar de fato, se envolver na prática.",
+      "Segurar vela": "Acompanhar um casal namorando, ficando sem par.",
+      "Pisar em ovos": "Agir com muito cuidado numa situação delicada.",
+      "Chorar as pitangas": "Reclamar ou se lamentar de forma exagerada.",
+      "Pendurar as chuteiras": "Se aposentar, parar de exercer uma atividade.",
+      "Bater as botas": "Morrer.",
+      "Meter a colher": "Se intrometer num assunto que não é seu.",
+      "Passar a mão na cabeça": "Perdoar ou deixar sem punição quem errou.",
+      "Fazer tempestade em copo d'água": "Exagerar um problema pequeno.",
+      "Dar com a língua nos dentes": "Contar um segredo por indiscrição.",
+      "Vender o peixe": "Convencer alguém a aceitar sua ideia ou produto.",
+      "Chutar o pau da barraca": "Perder a paciência e desistir de manter as aparências.",
+      "Comprar gato por lebre": "Ser enganado, receber algo diferente do prometido.",
+      "Enfiar o pé na jaca": "Exagerar, geralmente na comida ou na bebida.",
+      "Fazer das tripas coração": "Se esforçar ao máximo mesmo em dificuldade.",
+      "Ficar a ver navios": "Ficar esperando algo que nunca chega.",
+      "Ir com a cara e a coragem": "Encarar algo sem preparo, só com disposição.",
+      "Levar a breca": "Se dar mal, ser castigado.",
+      "Não ter papas na língua": "Falar o que pensa sem rodeios.",
+      "Pisar na bola": "Cometer um erro ou falhar com alguém.",
+      "Plantar bananeira": "Ficar de cabeça para baixo, apoiado nas mãos.",
+      "Pôr a mão no fogo": "Confiar totalmente em alguém ou em algo.",
+      "Pôr as barbas de molho": "Se prevenir contra um problema que pode acontecer.",
+      "Quebrar a cara": "Fracassar feio numa tentativa.",
+      "Tirar o cavalinho da chuva": "Desistir de uma expectativa que não vai se realizar.",
+      "Vestir a camisa": "Se dedicar de corpo e alma a uma causa ou time.",
+      "Virar a casaca": "Trocar de lado, trair um grupo por interesse.",
+      "Bater na mesma tecla": "Repetir insistentemente o mesmo assunto.",
+      "Cair a ficha": "Finalmente entender ou perceber algo.",
+      "Dar o cano": "Não comparecer a um compromisso, deixando alguém esperando.",
+      "Deixar a peteca cair": "Parar de se esforçar, perder o ritmo.",
+      "Encher o saco": "Incomodar ou chatear alguém repetidamente.",
+      "Fazer vista grossa": "Ignorar de propósito um erro ou problema.",
+      "Ir pelo caminho das pedras": "Escolher o caminho mais difícil.",
+      "Pisar em terreno minado": "Lidar com um assunto delicado e arriscado.",
+      "Tirar o time de campo": "Desistir, sair de uma disputa ou compromisso."
+    },
+    famosos: {
+      "Anitta": "Cantora brasileira de funk e pop, sucesso internacional.",
+      "Neymar": "Atacante brasileiro, jogou Barcelona, PSG e seleção.",
+      "Silvio Santos": "Apresentador de TV, dono do SBT, criou o Baú da Felicidade.",
+      "Xuxa": "Apresentadora e cantora infantil, \"Rainha dos Baixinhos\".",
+      "Ronaldinho Gaúcho": "Meio-campista craque, driblador, jogou no Barcelona.",
+      "Gisele Bündchen": "Supermodelo brasileira, uma das mais famosas do mundo.",
+      "Pelé": "Maior jogador de futebol da história, tricampeão mundial.",
+      "Ayrton Senna": "Piloto de Fórmula 1, tricampeão mundial, morreu em 1994.",
+      "Chaves": "Personagem cômico mexicano que morava num barril.",
+      "Michael Jackson": "\"Rei do Pop\", cantor de \"Thriller\", inventou o moonwalk.",
+      "Charlie Chaplin": "Ator do cinema mudo, personagem Carlitos.",
+      "Albert Einstein": "Físico que criou a teoria da relatividade.",
+      "Cristiano Ronaldo": "Atacante português, um dos maiores artilheiros da história.",
+      "Whindersson Nunes": "Humorista e youtuber brasileiro.",
+      "Ivete Sangalo": "Cantora baiana de axé.",
+      "Pabllo Vittar": "Drag queen e cantora pop brasileira.",
+      "Sabrina Sato": "Apresentadora de TV brasileira.",
+      "Luciano Huck": "Apresentador de TV, casado com a Angélica.",
+      "Gusttavo Lima": "Cantor sertanejo, hit \"Balada Boa\".",
+      "Fernanda Montenegro": "Atriz brasileira, indicada ao Oscar por \"Central do Brasil\".",
+      "Roberto Carlos": "Cantor romântico brasileiro, apelidado de \"O Rei\".",
+      "Zico": "Ex-jogador de futebol, ídolo do Flamengo.",
+      "Madonna": "Cantora pop americana, \"Rainha do Pop\".",
+      "Elvis Presley": "Cantor americano, \"Rei do Rock\".",
+      "Larissa Manoela": "Atriz brasileira, famosa desde criança em novelas.",
+      "Romário": "Ex-atacante brasileiro, artilheiro histórico, campeão mundial em 94.",
+      "Ronaldo Fenômeno": "Ex-atacante brasileiro, bicampeão mundial de futebol.",
+      "Kaká": "Ex-meio-campista brasileiro, ganhou a Bola de Ouro em 2007.",
+      "Garrincha": "Ex-jogador de futebol, driblador lendário, bicampeão mundial.",
+      "Sócrates": "Ex-jogador e médico, ídolo da Democracia Corintiana.",
+      "Rubens Barrichello": "Piloto de Fórmula 1 brasileiro.",
+      "Lionel Messi": "Atacante argentino, um dos melhores da história do futebol.",
+      "Kobe Bryant": "Ex-jogador de basquete americano, lenda do Lakers na NBA.",
+      "LeBron James": "Jogador de basquete americano, um dos maiores da NBA.",
+      "Michael Jordan": "Ex-jogador de basquete, lenda da NBA pelo Chicago Bulls.",
+      "Bruna Marquezine": "Atriz brasileira de novelas.",
+      "Juliette Freire": "Vencedora do reality Big Brother Brasil 21.",
+      "Fátima Bernardes": "Apresentadora de TV brasileira.",
+      "Faustão": "Apresentador de TV brasileiro, décadas na Globo.",
+      "Rodrigo Faro": "Apresentador de TV brasileiro.",
+      "Marcos Mion": "Apresentador de TV brasileiro.",
+      "Angélica": "Apresentadora de TV, casada com o Luciano Huck.",
+      "Tiago Leifert": "Ex-apresentador de TV, apresentou o Big Brother Brasil.",
+      "Marília Mendonça": "Cantora sertaneja, conhecida como \"Rainha da Sofrência\".",
+      "Wesley Safadão": "Cantor brasileiro de forró e sertanejo.",
+      "Simone Mendes": "Cantora sertaneja, dupla com a irmã Simaria.",
+      "Beyoncé": "Cantora americana, ex-integrante do Destiny's Child.",
+      "Taylor Swift": "Cantora americana de pop e country.",
+      "Lady Gaga": "Cantora americana, famosa por figurinos extravagantes.",
+      "Rihanna": "Cantora de Barbados.",
+      "Freddie Mercury": "Vocalista da banda de rock Queen.",
+      "John Lennon": "Um dos integrantes da banda The Beatles.",
+      "Marilyn Monroe": "Atriz e símbolo de beleza americano dos anos 1950.",
+      "Vinícius Jr.": "Atacante brasileiro que joga no Real Madrid.",
+      "Rafael Nadal": "Tenista espanhol, apelidado de \"rei do saibro\".",
+      "Roger Federer": "Tenista suíço, vários títulos de Grand Slam.",
+      "Usain Bolt": "Corredor jamaicano, o homem mais rápido do mundo.",
+      "Serena Williams": "Tenista americana, uma das maiores da história.",
+      "Simone Biles": "Ginasta americana, várias medalhas olímpicas.",
+      "Falcão": "Jogador de futsal brasileiro, considerado o melhor do mundo.",
+      "Marta": "Jogadora de futebol brasileira, várias vezes eleita a melhor do mundo.",
+      "Rebeca Andrade": "Ginasta brasileira, medalhista olímpica.",
+      "Susana Vieira": "Atriz brasileira de novelas.",
+      "Regina Duarte": "Atriz brasileira de novelas.",
+      "Tony Ramos": "Ator brasileiro de novelas.",
+      "Camila Queiroz": "Atriz brasileira, conhecida por \"Verdades Secretas\".",
+      "José Loreto": "Ator brasileiro de novelas.",
+      "Boninho": "Diretor de TV, criador do Big Brother Brasil.",
+      "Ana Maria Braga": "Apresentadora do programa \"Mais Você\".",
+      "Patrícia Poeta": "Apresentadora de TV brasileira.",
+      "Ludmilla": "Cantora brasileira de funk e pop.",
+      "Zezé Di Camargo": "Cantor sertanejo, dupla com o irmão Luciano.",
+      "Michael Bublé": "Cantor canadense de jazz e pop.",
+      "Ariana Grande": "Cantora pop americana.",
+      "Bruno Mars": "Cantor americano de pop e funk.",
+      "Ed Sheeran": "Cantor britânico, hit \"Shape of You\".",
+      "Shakira": "Cantora colombiana.",
+      "Selena Gomez": "Cantora e atriz americana.",
+      "Justin Timberlake": "Cantor americano, ex-integrante do NSYNC.",
+      "Casimiro": "Youtuber e streamer brasileiro que comenta futebol.",
+      "Felipe Neto": "Youtuber brasileiro.",
+      "Kéfera": "Youtuber e atriz brasileira.",
+      "MC Bin Laden": "Cantor de funk brasileiro.",
+      "Diego Maradona": "Ex-jogador argentino, campeão mundial em 1986.",
+      "Muhammad Ali": "Ex-boxeador americano, lenda do boxe.",
+      "Michael Phelps": "Nadador americano, o maior medalhista olímpico da história.",
+      "Babe Ruth": "Jogador de beisebol americano, lenda desse esporte.",
+      "Tiger Woods": "Golfista americano.",
+      "Wayne Gretzky": "Jogador de hóquei no gelo canadense.",
+      "Jesse Owens": "Corredor americano, 4 medalhas de ouro olímpicas em 1936.",
+      "Mike Tyson": "Ex-boxeador americano.",
+      "Nadia Comăneci": "Ginasta romena, primeira nota 10 da história olímpica.",
+      "Carl Lewis": "Corredor e saltador americano, vários ouros olímpicos.",
+      "Michael Schumacher": "Piloto de Fórmula 1 alemão, 7 títulos mundiais.",
+      "Emerson Fittipaldi": "Piloto de Fórmula 1 brasileiro, bicampeão mundial.",
+      "Nelson Piquet": "Piloto de Fórmula 1 brasileiro, tricampeão mundial.",
+      "Felipe Massa": "Piloto de Fórmula 1 brasileiro.",
+      "Gustavo Kuerten": "Tenista brasileiro, \"Guga\", tricampeão de Roland Garros.",
+      "César Cielo": "Nadador brasileiro, medalhista de ouro olímpico.",
+      "Daiane dos Santos": "Ginasta brasileira, pioneira em medalhas mundiais.",
+      "Robert Scheidt": "Velejador brasileiro, multimedalhista olímpico.",
+      "Rayssa Leal": "Skatista brasileira, medalhista olímpica.",
+      "Arthur Zanetti": "Ginasta brasileiro, ouro olímpico nas argolas.",
+      "Oscar Schmidt": "Ex-jogador de basquete brasileiro, maior pontuador da história.",
+      "Hortência": "Ex-jogadora de basquete brasileira.",
+      "Formiga": "Jogadora de futebol brasileira, recordista de Copas do Mundo.",
+      "Vanderlei Cordeiro de Lima": "Maratonista brasileiro, bronze em Atenas 2004."
+    },
+    lugar: {
+      "Afeganistão": "País da Ásia.",
+      "África do Sul": "País da África.",
+      "Albânia": "País da Europa.",
+      "Alemanha": "País da Europa.",
+      "Andorra": "País da Europa.",
+      "Angola": "País da África.",
+      "Antígua e Barbuda": "País do Caribe.",
+      "Arábia Saudita": "País do Oriente Médio.",
+      "Argélia": "País da África.",
+      "Argentina": "País da América do Sul.",
+      "Armênia": "País da Ásia.",
+      "Austrália": "País da Oceania.",
+      "Áustria": "País da Europa.",
+      "Azerbaijão": "País da Ásia.",
+      "Bahamas": "País do Caribe.",
+      "Bangladesh": "País da Ásia.",
+      "Barbados": "País do Caribe.",
+      "Barein": "País do Oriente Médio.",
+      "Bélgica": "País da Europa.",
+      "Belize": "País da América Central.",
+      "Benin": "País da África.",
+      "Bielorrússia": "País da Europa.",
+      "Bolívia": "País da América do Sul.",
+      "Bósnia e Herzegovina": "País da Europa.",
+      "Botsuana": "País da África.",
+      "Brasil": "País da América do Sul.",
+      "Brunei": "País da Ásia.",
+      "Bulgária": "País da Europa.",
+      "Burkina Faso": "País da África.",
+      "Burundi": "País da África.",
+      "Butão": "País da Ásia.",
+      "Cabo Verde": "País da África.",
+      "Camarões": "País da África.",
+      "Camboja": "País da Ásia.",
+      "Canadá": "País da América do Norte.",
+      "Catar": "País do Oriente Médio.",
+      "Cazaquistão": "País da Ásia.",
+      "Chade": "País da África.",
+      "Chile": "País da América do Sul.",
+      "China": "País da Ásia.",
+      "Chipre": "País da Europa.",
+      "Colômbia": "País da América do Sul.",
+      "Comores": "País da África.",
+      "Congo": "País da África.",
+      "Coreia do Norte": "País da Ásia.",
+      "Coreia do Sul": "País da Ásia.",
+      "Costa do Marfim": "País da África.",
+      "Costa Rica": "País da América Central.",
+      "Croácia": "País da Europa.",
+      "Cuba": "País do Caribe.",
+      "Dinamarca": "País da Europa.",
+      "Djibouti": "País da África.",
+      "Dominica": "País do Caribe.",
+      "Egito": "País da África.",
+      "El Salvador": "País da América Central.",
+      "Emirados Árabes Unidos": "País do Oriente Médio.",
+      "Equador": "País da América do Sul.",
+      "Eritreia": "País da África.",
+      "Eslováquia": "País da Europa.",
+      "Eslovênia": "País da Europa.",
+      "Espanha": "País da Europa.",
+      "Estados Unidos": "País da América do Norte.",
+      "Estônia": "País da Europa.",
+      "Essuatíni": "País da África.",
+      "Etiópia": "País da África.",
+      "Fiji": "País da Oceania.",
+      "Filipinas": "País da Ásia.",
+      "Finlândia": "País da Europa.",
+      "França": "País da Europa.",
+      "Gabão": "País da África.",
+      "Gâmbia": "País da África.",
+      "Gana": "País da África.",
+      "Geórgia": "País da Ásia.",
+      "Granada": "País do Caribe.",
+      "Grécia": "País da Europa.",
+      "Guatemala": "País da América Central.",
+      "Guiana": "País da América do Sul.",
+      "Guiné": "País da África.",
+      "Guiné Equatorial": "País da África.",
+      "Guiné-Bissau": "País da África.",
+      "Haiti": "País do Caribe.",
+      "Holanda": "País da Europa.",
+      "Honduras": "País da América Central.",
+      "Hungria": "País da Europa.",
+      "Iêmen": "País do Oriente Médio.",
+      "Ilhas Marshall": "País da Oceania.",
+      "Ilhas Salomão": "País da Oceania.",
+      "Índia": "País da Ásia.",
+      "Indonésia": "País da Ásia.",
+      "Irã": "País do Oriente Médio.",
+      "Iraque": "País do Oriente Médio.",
+      "Irlanda": "País da Europa.",
+      "Islândia": "País da Europa.",
+      "Israel": "País do Oriente Médio.",
+      "Itália": "País da Europa.",
+      "Jamaica": "País do Caribe.",
+      "Japão": "País da Ásia.",
+      "Jordânia": "País do Oriente Médio.",
+      "Kiribati": "País da Oceania.",
+      "Kuwait": "País do Oriente Médio.",
+      "Laos": "País da Ásia.",
+      "Lesoto": "País da África.",
+      "Letônia": "País da Europa.",
+      "Líbano": "País do Oriente Médio.",
+      "Libéria": "País da África.",
+      "Líbia": "País da África.",
+      "Liechtenstein": "País da Europa.",
+      "Lituânia": "País da Europa.",
+      "Luxemburgo": "País da Europa.",
+      "Macedônia do Norte": "País da Europa.",
+      "Madagascar": "País da África.",
+      "Malásia": "País da Ásia.",
+      "Malawi": "País da África.",
+      "Maldivas": "País da Ásia.",
+      "Mali": "País da África.",
+      "Malta": "País da Europa.",
+      "Marrocos": "País da África.",
+      "Maurício": "País da África.",
+      "Mauritânia": "País da África.",
+      "México": "País da América do Norte.",
+      "Mianmar": "País da Ásia.",
+      "Micronésia": "País da Oceania.",
+      "Moçambique": "País da África.",
+      "Moldávia": "País da Europa.",
+      "Mônaco": "País da Europa.",
+      "Mongólia": "País da Ásia.",
+      "Montenegro": "País da Europa.",
+      "Namíbia": "País da África.",
+      "Nauru": "País da Oceania.",
+      "Nepal": "País da Ásia.",
+      "Nicarágua": "País da América Central.",
+      "Níger": "País da África.",
+      "Nigéria": "País da África.",
+      "Noruega": "País da Europa.",
+      "Nova Zelândia": "País da Oceania.",
+      "Omã": "País do Oriente Médio.",
+      "Palau": "País da Oceania.",
+      "Panamá": "País da América Central.",
+      "Papua-Nova Guiné": "País da Oceania.",
+      "Paquistão": "País da Ásia.",
+      "Paraguai": "País da América do Sul.",
+      "Peru": "País da América do Sul.",
+      "Polônia": "País da Europa.",
+      "Portugal": "País da Europa.",
+      "Quênia": "País da África.",
+      "Quirguistão": "País da Ásia.",
+      "Reino Unido": "País da Europa.",
+      "República Centro-Africana": "País da África.",
+      "República Dominicana": "País do Caribe.",
+      "República Tcheca": "País da Europa.",
+      "Romênia": "País da Europa.",
+      "Ruanda": "País da África.",
+      "Rússia": "País que fica na Europa e na Ásia.",
+      "Samoa": "País da Oceania.",
+      "San Marino": "País da Europa.",
+      "Santa Lúcia": "País do Caribe.",
+      "São Cristóvão e Névis": "País do Caribe.",
+      "São Tomé e Príncipe": "País da África.",
+      "São Vicente e Granadinas": "País do Caribe.",
+      "Seicheles": "País da África.",
+      "Senegal": "País da África.",
+      "Serra Leoa": "País da África.",
+      "Sérvia": "País da Europa.",
+      "Singapura": "País da Ásia.",
+      "Síria": "País do Oriente Médio.",
+      "Somália": "País da África.",
+      "Sri Lanka": "País da Ásia.",
+      "Sudão": "País da África.",
+      "Sudão do Sul": "País da África.",
+      "Suécia": "País da Europa.",
+      "Suíça": "País da Europa.",
+      "Suriname": "País da América do Sul.",
+      "Tailândia": "País da Ásia.",
+      "Taiwan": "País da Ásia.",
+      "Tajiquistão": "País da Ásia.",
+      "Tanzânia": "País da África.",
+      "Timor-Leste": "País da Ásia.",
+      "Togo": "País da África.",
+      "Tonga": "País da Oceania.",
+      "Trinidad e Tobago": "País do Caribe.",
+      "Tunísia": "País da África.",
+      "Turcomenistão": "País da Ásia.",
+      "Turquia": "País que fica entre a Europa e a Ásia.",
+      "Tuvalu": "País da Oceania.",
+      "Ucrânia": "País da Europa.",
+      "Uganda": "País da África.",
+      "Uruguai": "País da América do Sul.",
+      "Uzbequistão": "País da Ásia.",
+      "Vanuatu": "País da Oceania.",
+      "Vaticano": "País da Europa.",
+      "Venezuela": "País da América do Sul.",
+      "Vietnã": "País da Ásia.",
+      "Zâmbia": "País da África.",
+      "Zimbábue": "País da África.",
+      "Washington": "Capital dos Estados Unidos.",
+      "Pequim": "Capital da China.",
+      "Tóquio": "Capital do Japão.",
+      "Berlim": "Capital da Alemanha.",
+      "Nova Delhi": "Capital da Índia.",
+      "Londres": "Capital do Reino Unido.",
+      "Paris": "Capital da França.",
+      "Roma": "Capital da Itália.",
+      "Ottawa": "Capital do Canadá.",
+      "Moscou": "Capital da Rússia.",
+      "Seul": "Capital da Coreia do Sul.",
+      "Camberra": "Capital da Austrália.",
+      "Madrid": "Capital da Espanha.",
+      "Cidade do México": "Capital do México.",
+      "Jacarta": "Capital da Indonésia.",
+      "Amsterdã": "Capital da Holanda.",
+      "Riade": "Capital da Arábia Saudita.",
+      "Buenos Aires": "Capital da Argentina.",
+      "Cairo": "Capital do Egito.",
+      "Pretória": "Capital administrativa da África do Sul.",
+      "Torre Eiffel": "Torre de ferro em Paris, na França.",
+      "Cristo Redentor": "Estátua no alto do Corcovado, no Rio de Janeiro.",
+      "Estátua da Liberdade": "Estátua em Nova York, nos Estados Unidos.",
+      "Muralha da China": "Antiga muralha que atravessa a China.",
+      "Coliseu": "Anfiteatro da Roma Antiga, na Itália.",
+      "Torre de Pisa": "Torre inclinada na cidade de Pisa, na Itália.",
+      "Pirâmides do Egito": "Monumentos antigos no deserto do Egito.",
+      "Big Ben": "Torre do relógio em Londres, no Reino Unido.",
+      "Taj Mahal": "Mausoléu de mármore branco na Índia.",
+      "Machu Picchu": "Ruínas incas nas montanhas do Peru.",
+      "Ópera de Sydney": "Teatro com telhados em forma de vela, na Austrália.",
+      "Sagrada Família": "Igreja inacabada em Barcelona, na Espanha.",
+      "Stonehenge": "Círculo de pedras pré-histórico no Reino Unido.",
+      "Monte Rushmore": "Rostos de 4 presidentes esculpidos em rocha, nos Estados Unidos.",
+      "Muro de Berlim": "Antigo muro que dividia a Alemanha em duas.",
+      "Acre": "Estado da região Norte do Brasil.",
+      "Alagoas": "Estado da região Nordeste do Brasil.",
+      "Amapá": "Estado da região Norte do Brasil.",
+      "Amazonas": "Estado da região Norte do Brasil.",
+      "Bahia": "Estado da região Nordeste do Brasil.",
+      "Ceará": "Estado da região Nordeste do Brasil.",
+      "Distrito Federal": "Unidade federativa da região Centro-Oeste do Brasil.",
+      "Espírito Santo": "Estado da região Sudeste do Brasil.",
+      "Goiás": "Estado da região Centro-Oeste do Brasil.",
+      "Maranhão": "Estado da região Nordeste do Brasil.",
+      "Mato Grosso": "Estado da região Centro-Oeste do Brasil.",
+      "Mato Grosso do Sul": "Estado da região Centro-Oeste do Brasil.",
+      "Minas Gerais": "Estado da região Sudeste do Brasil.",
+      "Pará": "Estado da região Norte do Brasil.",
+      "Paraíba": "Estado da região Nordeste do Brasil.",
+      "Paraná": "Estado da região Sul do Brasil.",
+      "Pernambuco": "Estado da região Nordeste do Brasil.",
+      "Piauí": "Estado da região Nordeste do Brasil.",
+      "Rio de Janeiro": "Estado da região Sudeste do Brasil.",
+      "Rio Grande do Norte": "Estado da região Nordeste do Brasil.",
+      "Rio Grande do Sul": "Estado da região Sul do Brasil.",
+      "Rondônia": "Estado da região Norte do Brasil.",
+      "Roraima": "Estado da região Norte do Brasil.",
+      "Santa Catarina": "Estado da região Sul do Brasil.",
+      "São Paulo": "Estado da região Sudeste do Brasil.",
+      "Sergipe": "Estado da região Nordeste do Brasil.",
+      "Tocantins": "Estado da região Norte do Brasil.",
+      "Brasília": "Capital do Brasil, no Centro-Oeste do Brasil.",
+      "Salvador": "Cidade do estado de Bahia, na região Nordeste do Brasil.",
+      "Fortaleza": "Cidade do estado de Ceará, na região Nordeste do Brasil.",
+      "Belo Horizonte": "Cidade do estado de Minas Gerais, na região Sudeste do Brasil.",
+      "Manaus": "Cidade do estado de Amazonas, na região Norte do Brasil.",
+      "Curitiba": "Cidade do estado de Paraná, na região Sul do Brasil.",
+      "Recife": "Cidade do estado de Pernambuco, na região Nordeste do Brasil.",
+      "Goiânia": "Cidade do estado de Goiás, na região Centro-Oeste do Brasil.",
+      "Belém": "Cidade do estado de Pará, na região Norte do Brasil.",
+      "Porto Alegre": "Cidade do estado de Rio Grande do Sul, na região Sul do Brasil.",
+      "Guarulhos": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Campinas": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "São Luís": "Cidade do estado de Maranhão, na região Nordeste do Brasil.",
+      "São Gonçalo": "Cidade do estado de Rio de Janeiro, na região Sudeste do Brasil.",
+      "Maceió": "Cidade do estado de Alagoas, na região Nordeste do Brasil.",
+      "Duque de Caxias": "Cidade do estado de Rio de Janeiro, na região Sudeste do Brasil.",
+      "Natal": "Cidade do estado de Rio Grande do Norte, na região Nordeste do Brasil.",
+      "Teresina": "Cidade do estado de Piauí, na região Nordeste do Brasil.",
+      "Campo Grande": "Cidade do estado de Mato Grosso do Sul, na região Centro-Oeste do Brasil.",
+      "Nova Iguaçu": "Cidade do estado de Rio de Janeiro, na região Sudeste do Brasil.",
+      "São Bernardo do Campo": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "João Pessoa": "Cidade do estado de Paraíba, na região Nordeste do Brasil.",
+      "Santo André": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Jaboatão dos Guararapes": "Cidade do estado de Pernambuco, na região Nordeste do Brasil.",
+      "Osasco": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "São José dos Campos": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Ribeirão Preto": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Uberlândia": "Cidade do estado de Minas Gerais, na região Sudeste do Brasil.",
+      "Contagem": "Cidade do estado de Minas Gerais, na região Sudeste do Brasil.",
+      "Sorocaba": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Aracaju": "Cidade do estado de Sergipe, na região Nordeste do Brasil.",
+      "Feira de Santana": "Cidade do estado de Bahia, na região Nordeste do Brasil.",
+      "Cuiabá": "Cidade do estado de Mato Grosso, na região Centro-Oeste do Brasil.",
+      "Joinville": "Cidade do estado de Santa Catarina, na região Sul do Brasil.",
+      "Juiz de Fora": "Cidade do estado de Minas Gerais, na região Sudeste do Brasil.",
+      "Londrina": "Cidade do estado de Paraná, na região Sul do Brasil.",
+      "Aparecida de Goiânia": "Cidade do estado de Goiás, na região Centro-Oeste do Brasil.",
+      "Ananindeua": "Cidade do estado de Pará, na região Norte do Brasil.",
+      "Niterói": "Cidade do estado de Rio de Janeiro, na região Sudeste do Brasil.",
+      "Porto Velho": "Cidade do estado de Rondônia, na região Norte do Brasil.",
+      "Serra": "Cidade do estado de Espírito Santo, na região Sudeste do Brasil.",
+      "Caxias do Sul": "Cidade do estado de Rio Grande do Sul, na região Sul do Brasil.",
+      "Vila Velha": "Cidade do estado de Espírito Santo, na região Sudeste do Brasil.",
+      "Florianópolis": "Cidade do estado de Santa Catarina, na região Sul do Brasil.",
+      "Macapá": "Cidade do estado de Amapá, na região Norte do Brasil.",
+      "Mauá": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "São João de Meriti": "Cidade do estado de Rio de Janeiro, na região Sudeste do Brasil.",
+      "Diadema": "Cidade do estado de São Paulo, na região Sudeste do Brasil.",
+      "Vitória": "Cidade do estado de Espírito Santo, na região Sudeste do Brasil.",
+      "Palmas": "Cidade do estado de Tocantins, na região Norte do Brasil."
+    }
+  };
+
+  // Content tags used by the setup screen's "sem inglês" / "versão
+  // brasileira" toggles. Only the categories that actually mix
+  // Brazilian/international or Portuguese/English content need an entry —
+  // everything else is treated as always-neutral and never filtered.
+  var NON_BRAZILIAN = {
+    lugar: ["Afeganistão","África do Sul","Albânia","Alemanha","Andorra","Angola","Antígua e Barbuda","Arábia Saudita","Argélia","Argentina","Armênia","Austrália","Áustria","Azerbaijão","Bahamas","Bangladesh","Barbados","Barein","Bélgica","Belize","Benin","Bielorrússia","Bolívia","Bósnia e Herzegovina","Botsuana","Brunei","Bulgária","Burkina Faso","Burundi","Butão","Cabo Verde","Camarões","Camboja","Canadá","Catar","Cazaquistão","Chade","Chile","China","Chipre","Colômbia","Comores","Congo","Coreia do Norte","Coreia do Sul","Costa do Marfim","Costa Rica","Croácia","Cuba","Dinamarca","Djibouti","Dominica","Egito","El Salvador","Emirados Árabes Unidos","Equador","Eritreia","Eslováquia","Eslovênia","Espanha","Estados Unidos","Estônia","Essuatíni","Etiópia","Fiji","Filipinas","Finlândia","França","Gabão","Gâmbia","Gana","Geórgia","Granada","Grécia","Guatemala","Guiana","Guiné","Guiné Equatorial","Guiné-Bissau","Haiti","Holanda","Honduras","Hungria","Iêmen","Ilhas Marshall","Ilhas Salomão","Índia","Indonésia","Irã","Iraque","Irlanda","Islândia","Israel","Itália","Jamaica","Japão","Jordânia","Kiribati","Kuwait","Laos","Lesoto","Letônia","Líbano","Libéria","Líbia","Liechtenstein","Lituânia","Luxemburgo","Macedônia do Norte","Madagascar","Malásia","Malawi","Maldivas","Mali","Malta","Marrocos","Maurício","Mauritânia","México","Mianmar","Micronésia","Moçambique","Moldávia","Mônaco","Mongólia","Montenegro","Namíbia","Nauru","Nepal","Nicarágua","Níger","Nigéria","Noruega","Nova Zelândia","Omã","Palau","Panamá","Papua-Nova Guiné","Paquistão","Paraguai","Peru","Polônia","Portugal","Quênia","Quirguistão","Reino Unido","República Centro-Africana","República Dominicana","República Tcheca","Romênia","Ruanda","Rússia","Samoa","San Marino","Santa Lúcia","São Cristóvão e Névis","São Tomé e Príncipe","São Vicente e Granadinas","Seicheles","Senegal","Serra Leoa","Sérvia","Singapura","Síria","Somália","Sri Lanka","Sudão","Sudão do Sul","Suécia","Suíça","Suriname","Tailândia","Taiwan","Tajiquistão","Tanzânia","Timor-Leste","Togo","Tonga","Trinidad e Tobago","Tunísia","Turcomenistão","Turquia","Tuvalu","Ucrânia","Uganda","Uruguai","Uzbequistão","Vanuatu","Vaticano","Venezuela","Vietnã","Zâmbia","Zimbábue","Washington","Pequim","Tóquio","Berlim","Nova Delhi","Londres","Paris","Roma","Ottawa","Moscou","Seul","Camberra","Madrid","Cidade do México","Jacarta","Amsterdã","Riade","Buenos Aires","Cairo","Pretória","Torre Eiffel","Estátua da Liberdade","Muralha da China","Coliseu","Torre de Pisa","Pirâmides do Egito","Big Ben","Taj Mahal","Machu Picchu","Ópera de Sydney","Sagrada Família","Stonehenge","Monte Rushmore","Muro de Berlim"],
+    famosos: ["Michael Jackson","Charlie Chaplin","Albert Einstein","Madonna","Elvis Presley","Lionel Messi","Kobe Bryant","LeBron James","Michael Jordan","Beyoncé","Taylor Swift","Lady Gaga","Rihanna","Freddie Mercury","John Lennon","Marilyn Monroe","Michael Bublé","Ariana Grande","Bruno Mars","Ed Sheeran","Shakira","Selena Gomez","Justin Timberlake","Diego Maradona","Muhammad Ali","Michael Phelps","Babe Ruth","Tiger Woods","Wayne Gretzky","Jesse Owens","Mike Tyson","Nadia Comăneci","Carl Lewis","Michael Schumacher"],
+    filmes: ["Titanic","Avatar","Vingadores","Toy Story","Friends","Stranger Things","La Casa de Papel","Chaves","Shrek","Frozen","Harry Potter","O Rei Leão","Game of Thrones","Breaking Bad","Senhor dos Anéis","Jurassic Park","Star Wars","Velozes e Furiosos","Batman","Homem-Aranha","De Volta para o Futuro","Matrix","Rocky","Coringa","Pantera Negra","A Origem","Interestelar","E.T.","Tubarão","Piratas do Caribe","Como Treinar o Seu Dragão","Divertida Mente","Procurando Nemo","Wall-E","Up: Altas Aventuras","Viva - A Vida é uma Festa","Encanto","Moana","Round 6","The Office","Grey's Anatomy","Sherlock","Peaky Blinders","Sex Education","Riverdale","Elite","Dark","Cobra Kai","Ozark","Cinderela","Branca de Neve e os Sete Anões","A Bela e a Fera","Aladdin","A Pequena Sereia","Mulan","Pocahontas","Hércules","Lilo & Stitch","Enrolados","Valente","Carros","Monstros S.A.","Ratatouille","Os Incríveis","Zootopia","Detona Ralph","A Princesa e o Sapo","Soul","Luca"],
+    musica: ["Shape of You (Ed Sheeran)","Bohemian Rhapsody (Queen)","Billie Jean (Michael Jackson)","Someone Like You (Adele)","Rolling in the Deep (Adele)","Uptown Funk (Bruno Mars)","Shake It Off (Taylor Swift)","Despacito (Luis Fonsi)","Old Town Road (Lil Nas X)","Blinding Lights (The Weeknd)","Livin' on a Prayer (Bon Jovi)","Sweet Child O' Mine (Guns N' Roses)","I Want It That Way (Backstreet Boys)","Wannabe (Spice Girls)","Thriller (Michael Jackson)","Imagine (John Lennon)","Hotel California (Eagles)","Stairway to Heaven (Led Zeppelin)","My Heart Will Go On (Celine Dion)","Like a Virgin (Madonna)","Toxic (Britney Spears)","Someone You Loved (Lewis Capaldi)","Viva la Vida (Coldplay)","Poker Face (Lady Gaga)","Happy (Pharrell Williams)","Roar (Katy Perry)","We Will Rock You (Queen)","Dancing Queen (ABBA)","Waka Waka (Shakira)","Yesterday (The Beatles)","Let It Be (The Beatles)","Hey Jude (The Beatles)","Smells Like Teen Spirit (Nirvana)","Wonderwall (Oasis)","(I Can't Get No) Satisfaction (The Rolling Stones)","Purple Rain (Prince)","Like a Rolling Stone (Bob Dylan)","Respect (Aretha Franklin)","I Will Always Love You (Whitney Houston)","Rehab (Amy Winehouse)","Umbrella (Rihanna)","Halo (Beyoncé)","Single Ladies (Beyoncé)","Born This Way (Lady Gaga)","Levitating (Dua Lipa)","Watermelon Sugar (Harry Styles)","Shallow (Lady Gaga)","Bad Guy (Billie Eilish)","Bad Romance (Lady Gaga)","Firework (Katy Perry)","Party in the U.S.A. (Miley Cyrus)","Can't Stop the Feeling! (Justin Timberlake)","Sorry (Justin Bieber)","Baby (Justin Bieber)","Sicko Mode (Travis Scott)","God's Plan (Drake)","Africa (Toto)","Take on Me (a-ha)","Girls Just Want to Have Fun (Cyndi Lauper)","Eye of the Tiger (Survivor)","Another Brick in the Wall (Pink Floyd)","Smooth Criminal (Michael Jackson)","Beat It (Michael Jackson)","Faded (Alan Walker)","Closer (The Chainsmokers)","Counting Stars (OneRepublic)","Radioactive (Imagine Dragons)","Believer (Imagine Dragons)","Sugar (Maroon 5)","Moves Like Jagger (Maroon 5)","Can't Feel My Face (The Weeknd)","Rockstar (Post Malone)","Havana (Camila Cabello)","Señorita (Shawn Mendes & Camila Cabello)","Cheap Thrills (Sia)","Chandelier (Sia)","All of Me (John Legend)","Perfect (Ed Sheeran)","Yellow (Coldplay)","Let It Go / Livre Estou (Frozen)","Hakuna Matata (O Rei Leão)","A Whole New World / Um Mundo Ideal (Aladdin)","Under the Sea / Debaixo do Mar (A Pequena Sereia)","Colors of the Wind / Cores do Vento (Pocahontas)","You've Got a Friend in Me / Um Amigo Assim (Toy Story)","Try Everything / Tentar Tudo (Zootopia)","I See the Light / Ao Luar (Enrolados)","Reflection / Imagem (Mulan)","How Far I'll Go / Saber Quem Sou (Moana)","Into the Unknown / Minha Intuição (Frozen 2)","Beauty and the Beast / A Bela e a Fera (A Bela e a Fera)","Part of Your World / Parte do Seu Mundo (A Pequena Sereia)","Circle of Life / Ciclo Sem Fim (O Rei Leão)","Almost There / Quase Lá (A Princesa e o Sapo)","Breaking Free (High School Musical)","We're All in This Together (High School Musical)","Start of Something New (High School Musical)","Bop to the Top (High School Musical)","Can I Have This Dance? (High School Musical 3)","Best of Both Worlds (Hannah Montana)","This Is Me (Camp Rock)","Barbie Girl (Aqua)","Call Me Maybe (Carly Rae Jepsen)","Since U Been Gone (Kelly Clarkson)","Genie in a Bottle (Christina Aguilera)","...Baby One More Time (Britney Spears)","Oops!... I Did It Again (Britney Spears)","Everybody (Backstreet Boys)","Bye Bye Bye (NSYNC)","Complicated (Avril Lavigne)","Sk8er Boi (Avril Lavigne)","Boyfriend (Justin Bieber)","What Makes You Beautiful (One Direction)","Best Song Ever (One Direction)","We Don't Talk About Bruno / Não Falamos do Bruno (Encanto)","Can You Feel the Love Tonight / Nesta Noite o Amor Chegou (O Rei Leão)","Kiss the Girl / Beije a Moça (A Pequena Sereia)","Do You Want to Build a Snowman? / Quer Fazer um Boneco de Neve? (Frozen)","Love Is an Open Door / Vejo Uma Porta Abrir (Frozen)","Friend Like Me / Nunca Teve um Amigo Assim (Aladdin)","Go the Distance / Vencer Distâncias (Hércules)"]
+  };
+  var ENGLISH_ONLY = {
+    musica: ["Shape of You (Ed Sheeran)","Bohemian Rhapsody (Queen)","Billie Jean (Michael Jackson)","Someone Like You (Adele)","Rolling in the Deep (Adele)","Uptown Funk (Bruno Mars)","Shake It Off (Taylor Swift)","Despacito (Luis Fonsi)","Old Town Road (Lil Nas X)","Blinding Lights (The Weeknd)","Livin' on a Prayer (Bon Jovi)","Sweet Child O' Mine (Guns N' Roses)","I Want It That Way (Backstreet Boys)","Wannabe (Spice Girls)","Thriller (Michael Jackson)","Imagine (John Lennon)","Hotel California (Eagles)","Stairway to Heaven (Led Zeppelin)","My Heart Will Go On (Celine Dion)","Like a Virgin (Madonna)","Toxic (Britney Spears)","Someone You Loved (Lewis Capaldi)","Viva la Vida (Coldplay)","Poker Face (Lady Gaga)","Happy (Pharrell Williams)","Roar (Katy Perry)","We Will Rock You (Queen)","Dancing Queen (ABBA)","Waka Waka (Shakira)","Yesterday (The Beatles)","Let It Be (The Beatles)","Hey Jude (The Beatles)","Smells Like Teen Spirit (Nirvana)","Wonderwall (Oasis)","(I Can't Get No) Satisfaction (The Rolling Stones)","Purple Rain (Prince)","Like a Rolling Stone (Bob Dylan)","Respect (Aretha Franklin)","I Will Always Love You (Whitney Houston)","Rehab (Amy Winehouse)","Umbrella (Rihanna)","Halo (Beyoncé)","Single Ladies (Beyoncé)","Born This Way (Lady Gaga)","Levitating (Dua Lipa)","Watermelon Sugar (Harry Styles)","Shallow (Lady Gaga)","Bad Guy (Billie Eilish)","Bad Romance (Lady Gaga)","Firework (Katy Perry)","Party in the U.S.A. (Miley Cyrus)","Can't Stop the Feeling! (Justin Timberlake)","Sorry (Justin Bieber)","Baby (Justin Bieber)","Sicko Mode (Travis Scott)","God's Plan (Drake)","Africa (Toto)","Take on Me (a-ha)","Girls Just Want to Have Fun (Cyndi Lauper)","Eye of the Tiger (Survivor)","Another Brick in the Wall (Pink Floyd)","Smooth Criminal (Michael Jackson)","Beat It (Michael Jackson)","Faded (Alan Walker)","Closer (The Chainsmokers)","Counting Stars (OneRepublic)","Radioactive (Imagine Dragons)","Believer (Imagine Dragons)","Sugar (Maroon 5)","Moves Like Jagger (Maroon 5)","Can't Feel My Face (The Weeknd)","Rockstar (Post Malone)","Havana (Camila Cabello)","Señorita (Shawn Mendes & Camila Cabello)","Cheap Thrills (Sia)","Chandelier (Sia)","All of Me (John Legend)","Perfect (Ed Sheeran)","Yellow (Coldplay)","Breaking Free (High School Musical)","We're All in This Together (High School Musical)","Start of Something New (High School Musical)","Bop to the Top (High School Musical)","Can I Have This Dance? (High School Musical 3)","Best of Both Worlds (Hannah Montana)","This Is Me (Camp Rock)","Barbie Girl (Aqua)","Call Me Maybe (Carly Rae Jepsen)","Since U Been Gone (Kelly Clarkson)","Genie in a Bottle (Christina Aguilera)","...Baby One More Time (Britney Spears)","Oops!... I Did It Again (Britney Spears)","Everybody (Backstreet Boys)","Bye Bye Bye (NSYNC)","Complicated (Avril Lavigne)","Sk8er Boi (Avril Lavigne)","Boyfriend (Justin Bieber)","What Makes You Beautiful (One Direction)","Best Song Ever (One Direction)"]
+  };
+  function wordsForMatch(catKey, noEnglish, brazilOnly){
+    var full = wordBank[catKey] || [];
+    var list = full;
+    if (brazilOnly && NON_BRAZILIAN[catKey]){
+      var nb = NON_BRAZILIAN[catKey];
+      list = list.filter(function(w){ return nb.indexOf(w) === -1; });
+    }
+    if (noEnglish && ENGLISH_ONLY[catKey]){
+      var eo = ENGLISH_ONLY[catKey];
+      list = list.filter(function(w){ return eo.indexOf(w) === -1; });
+    }
+    // A filter that would empty out a category is ignored for it rather
+    // than leaving the game with no words to draw.
+    return list.length ? list : full;
+  }
+
+  var dbDoc = null;
+  var dbAvailable = true;
+  var manageState = { activeCat: "lugar", returnTo: "setup", languageFilter: "none" };
+
+  function cloneWords(src){
+    var out = {};
+    Object.keys(src).forEach(function(k){ out[k] = src[k].slice(); });
+    return out;
+  }
+  function mergeWithDefaults(data){
+    var merged = {};
+    Object.keys(DEFAULT_WORDS).forEach(function(k){
+      var arr = data && Array.isArray(data[k]) ? data[k] : null;
+      merged[k] = (arr && arr.length) ? arr.slice() : DEFAULT_WORDS[k].slice();
+    });
+    return merged;
+  }
+
+  async function initWordBank(){
+    try{
+      if (!window.claude || typeof window.claude.use !== "function"){ dbAvailable = false; return; }
+      var db = await window.claude.use("db");
+      if (!db){ dbAvailable = false; return; }
+      dbDoc = db.doc("categories/words");
+      var snap = await dbDoc.get();
+      if (snap.exists){ wordBank = mergeWithDefaults(snap.data()); }
+      else { await dbDoc.set(DEFAULT_WORDS); wordBank = cloneWords(DEFAULT_WORDS); }
+      onWordBankChanged();
+      dbDoc.onSnapshot(function(s){
+        if (s.exists){ wordBank = mergeWithDefaults(s.data()); onWordBankChanged(); }
+      }, function(){ dbAvailable = false; onWordBankChanged(); });
+    } catch(e){
+      dbAvailable = false;
+      onWordBankChanged();
+    }
+  }
+  function onWordBankChanged(){
+    if (!setupEl.hidden) renderSetup();
+    if (!manageEl.hidden) renderManage();
+  }
+  function persistCategory(catKey){
+    if (!dbDoc) return;
+    var patch = {}; patch[catKey] = wordBank[catKey];
+    dbDoc.update(patch).catch(function(){ /* local edit stands even if the sync fails */ });
+  }
+  function addWord(catKey, raw){
+    var word = (raw || "").trim();
+    if (!word) return;
+    var exists = wordBank[catKey].some(function(w){ return w.toLowerCase() === word.toLowerCase(); });
+    if (exists) return;
+    wordBank[catKey] = wordBank[catKey].concat([word]);
+    renderManage();
+    persistCategory(catKey);
+  }
+  function removeWord(catKey, word){
+    wordBank[catKey] = wordBank[catKey].filter(function(w){ return w !== word; });
+    renderManage();
+    persistCategory(catKey);
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"]/g, function(ch){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch];
+    });
+  }
+  // Música entries are stored as "Título (Artista)" — split them so the
+  // reveal shows the title big and the artist as a small hint underneath.
+  function renderWordDisplay(word, catKey){
+    var html;
+    if (catKey === "musica"){
+      var m = /^(.*)\s\(([^)]+)\)\s*$/.exec(word);
+      html = m
+        ? '<div class="word">'+escapeHtml(m[1])+'</div><div class="artist-hint">('+escapeHtml(m[2])+')</div>'
+        : '<div class="word">'+escapeHtml(word)+'</div>';
+    } else {
+      html = '<div class="word">'+escapeHtml(word)+'</div>';
+    }
+    var hint = HINTS[catKey] && HINTS[catKey][word];
+    if (hint){
+      html += '<button type="button" class="hint-toggle" id="btnHintToggle">ⓘ Dica</button>' +
+        '<div class="hint-body" id="hintBody" hidden>'+escapeHtml(hint)+'</div>';
+    }
+    return html;
+  }
+  function wireHintToggle(){
+    var btn = document.getElementById("btnHintToggle");
+    if (btn) btn.addEventListener("click", function(){
+      document.getElementById("hintBody").hidden = !document.getElementById("hintBody").hidden;
+    });
+  }
+
+  var deck = {}; // shuffled word pointers per category
+  function shuffle(arr){
+    var a = arr.slice();
+    for (var i=a.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t=a[i]; a[i]=a[j]; a[j]=t;
+    }
+    return a;
+  }
+  function initDeck(noEnglish, brazilOnly){
+    deck = {};
+    Object.keys(wordBank).forEach(function(k){
+      var words = wordsForMatch(k, noEnglish, brazilOnly);
+      if (words.length) deck[k] = {list: shuffle(words), ptr:0};
+    });
+  }
+  function drawWord(catKey){
+    var pool = catKey === "aleatoria"
+      ? ((state && state.activeCatPool && state.activeCatPool.length) ? state.activeCatPool.filter(function(k){ return !!deck[k]; }) : Object.keys(deck))
+      : [catKey];
+    var chosenCat = pool[Math.floor(Math.random()*pool.length)];
+    var d = deck[chosenCat];
+    if (!d || d.ptr >= d.list.length){
+      var words = wordsForMatch(chosenCat, state.noEnglish, state.brazilOnly);
+      d = {list: shuffle(words), ptr:0};
+      deck[chosenCat] = d;
+    }
+    var w = d.list[d.ptr]; d.ptr++;
+    return {word:w, catKey: chosenCat};
+  }
+
+  var state = null;
+
+  function newState(numTeams, names, timerSec, enabledCats, steps, teamColors, noEnglish, brazilOnly){
+    initDeck(noEnglish, brazilOnly);
+    var teams = [];
+    for (var i=0;i<numTeams;i++){
+      var color = (teamColors && teamColors[i]) || defaultTeamColor(i);
+      teams.push({
+        name: (names[i] && names[i].trim()) || ("Equipe " + (i+1)),
+        color: color,
+        textColor: contrastTextFor(color),
+        pos: 0,
+        skipNext: false,
+        categoryOverride: null,
+        correct: 0,
+        wrong: 0,
+        byCategory: {} // catKey -> {correct, wrong}, filled in as words come up
+      });
+    }
+    var template = generateBoardTemplate(steps);
+    var board = buildEffectiveBoard(enabledCats, template) || buildEffectiveBoard(defaultEnabledCats(), template);
+    return {
+      teams: teams,
+      current: 0,
+      timerSec: timerSec,
+      phase: "idle", // idle -> revealed -> ended -> (skip-msg / win)
+      activeWord: null,
+      activeCatKey: null,
+      remaining: timerSec,
+      timerId: null,
+      winner: null,
+      board: board,
+      finishIdx: template.length - 1,
+      activeCatPool: REAL_CAT_KEYS.filter(function(k){ return enabledCats[k]; }),
+      aleatoriaEnabled: !!enabledCats.aleatoria,
+      noEnglish: !!noEnglish,
+      brazilOnly: !!brazilOnly
+    };
+  }
+  function defaultEnabledCats(){
+    var e = {};
+    Object.keys(CATS).forEach(function(k){ e[k] = true; });
+    return e;
+  }
+
+  // ---------------- SETUP SCREEN ----------------
+  var setupState = {
+    numTeams: 2, names: ["", ""], timerSec: 60, steps: 30, enabledCats: defaultEnabledCats(),
+    teamColors: [defaultTeamColor(0), defaultTeamColor(1)],
+    languageFilter: "none" // "none" | "noEnglish" | "brazilOnly" — mutually exclusive
+  };
+  function syncTeamColorsLength(n){
+    while (setupState.teamColors.length < n) setupState.teamColors.push(defaultTeamColor(setupState.teamColors.length));
+    setupState.teamColors.length = n;
+  }
+
+  function renderCategoryToggles(){
+    var chips = Object.keys(CATS).map(function(k){
+      var c = CATS[k];
+      var on = !!setupState.enabledCats[k];
+      var count = wordBank[k] ? " · " + wordBank[k].length : "";
+      var style = on ? "background:"+c.color+";border-color:"+c.color+";color:#fff;" : "opacity:.5;";
+      return '<button class="chip" data-catToggle="'+k+'" aria-pressed="'+on+'" style="'+style+'">'+c.icon+' '+c.label+count+'</button>';
+    }).join("");
+    var enabledRealCount = REAL_CAT_KEYS.filter(function(k){ return setupState.enabledCats[k]; }).length;
+    var warning = enabledRealCount === 0
+      ? '<p class="lede" style="color:var(--danger); font-weight:700;">Marque pelo menos uma categoria para começar.</p>' : "";
+    return '<div class="chip-row">'+chips+'</div>' +
+      '<div class="chip-row"><button class="ghost-btn" id="btnCatsAll">Marcar todas</button><button class="ghost-btn" id="btnCatsNone">Desmarcar todas</button></div>' +
+      warning;
+  }
+
+  function renderSetup(){
+    syncTeamColorsLength(setupState.numTeams);
+    var rows = "";
+    for (var i=0;i<setupState.numTeams;i++){
+      var myColor = setupState.teamColors[i];
+      var swatches = TEAM_COLOR_PALETTE.map(function(c){
+        var selected = c.hex === myColor;
+        var usedByOther = setupState.teamColors.some(function(col, oi){ return oi !== i && col === c.hex; });
+        return '<button type="button" class="color-swatch-btn'+(selected?' is-selected':'')+'" data-team-idx="'+i+'" data-color="'+c.hex+'" title="'+c.label+'" style="background:'+c.hex+';" '+(usedByOther?'disabled':'')+'></button>';
+      }).join("");
+      rows += '<div class="team-row-block">' +
+        '<div class="team-row">' +
+          '<div class="team-dot" style="background:'+myColor+'"></div>' +
+          '<input type="text" id="teamName'+i+'" placeholder="Equipe '+(i+1)+'" value="'+(setupState.names[i]||"").replace(/"/g,"&quot;")+'">' +
+        '</div>' +
+        '<div class="color-swatch-row">'+swatches+'</div>' +
+        '</div>';
+    }
+    var teamChips = [2,3,4,5,6].map(function(n){
+      return '<button class="chip'+(setupState.numTeams===n?' is-active':'')+'" data-num="'+n+'">'+n+' equipes</button>';
+    }).join("");
+    var timerChips = TIMER_OPTIONS.map(function(t){
+      return '<button class="chip'+(setupState.timerSec===t?' is-active':'')+'" data-timer="'+t+'">'+t+'s</button>';
+    }).join("");
+    var stepsChips = STEPS_OPTIONS.map(function(s){
+      return '<button class="chip'+(setupState.steps===s?' is-active':'')+'" data-steps="'+s+'">'+s+' casas</button>';
+    }).join("");
+
+    setupEl.innerHTML =
+      '<div class="setup-card">' +
+        '<div><h2>Monte a partida</h2><p class="lede">Cada acerto de mímica avança 1 casa no tabuleiro. Quem chegar primeiro à Chegada vence. Configure as equipes e o tempo de cada rodada.</p></div>' +
+        '<div class="field-group"><span class="field-label">Número de equipes</span><div class="chip-row">'+teamChips+'</div></div>' +
+        '<div class="field-group"><span class="field-label">Nomes das equipes</span><div class="team-rows">'+rows+'</div></div>' +
+        '<div class="field-group"><span class="field-label">Tempo por rodada</span><div class="chip-row">'+timerChips+'</div></div>' +
+        '<div class="field-group"><span class="field-label">Número de etapas</span><div class="chip-row">'+stepsChips+'</div></div>' +
+        '<div class="field-group"><span class="field-label">Categorias desta partida</span>'+renderCategoryToggles()+'</div>' +
+        '<div class="field-group"><span class="field-label">Filtro de idioma/origem</span><div class="chip-row">' +
+          '<button class="chip'+(setupState.languageFilter==="none"?' is-active':'')+'" data-langfilter="none">Sem filtros</button>' +
+          '<button class="chip'+(setupState.languageFilter==="noEnglish"?' is-active':'')+'" data-langfilter="noEnglish">🌐 Sem inglês</button>' +
+          '<button class="chip'+(setupState.languageFilter==="brazilOnly"?' is-active':'')+'" data-langfilter="brazilOnly">🇧🇷 Versão brasileira</button>' +
+        '</div><p class="lede">"Sem inglês" tira palavras só em inglês (músicas internacionais). "Versão brasileira" deixa só o que é do Brasil em cada categoria (lugares, famosos, filmes/novelas e músicas). Escolha só uma opção.</p></div>' +
+        '<button class="start-btn" id="btnStart">Começar a mímica 🎬</button>' +
+      '</div>';
+
+    setupEl.querySelectorAll("[data-num]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        setupState.numTeams = parseInt(btn.getAttribute("data-num"),10);
+        renderSetup();
+      });
+    });
+    setupEl.querySelectorAll("[data-timer]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        setupState.timerSec = parseInt(btn.getAttribute("data-timer"),10);
+        renderSetup();
+      });
+    });
+    setupEl.querySelectorAll("[data-steps]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        setupState.steps = parseInt(btn.getAttribute("data-steps"),10);
+        renderSetup();
+      });
+    });
+    setupEl.querySelectorAll("[data-catToggle]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var k = btn.getAttribute("data-catToggle");
+        setupState.enabledCats[k] = !setupState.enabledCats[k];
+        renderSetup();
+      });
+    });
+    var btnCatsAll = document.getElementById("btnCatsAll");
+    if (btnCatsAll) btnCatsAll.addEventListener("click", function(){
+      Object.keys(CATS).forEach(function(k){ setupState.enabledCats[k] = true; });
+      renderSetup();
+    });
+    var btnCatsNone = document.getElementById("btnCatsNone");
+    if (btnCatsNone) btnCatsNone.addEventListener("click", function(){
+      Object.keys(CATS).forEach(function(k){ setupState.enabledCats[k] = false; });
+      renderSetup();
+    });
+    setupEl.querySelectorAll("[data-langfilter]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        setupState.languageFilter = btn.getAttribute("data-langfilter");
+        renderSetup();
+      });
+    });
+    setupEl.querySelectorAll("[data-team-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = parseInt(btn.getAttribute("data-team-idx"),10);
+        setupState.teamColors[idx] = btn.getAttribute("data-color");
+        renderSetup();
+      });
+    });
+    for (var j=0;j<setupState.numTeams;j++){
+      (function(idx){
+        var inp = document.getElementById("teamName"+idx);
+        inp.addEventListener("input", function(){ setupState.names[idx] = inp.value; });
+      })(j);
+    }
+    var hasRealCat = REAL_CAT_KEYS.some(function(k){ return setupState.enabledCats[k]; });
+    var btnStart = document.getElementById("btnStart");
+    btnStart.disabled = !hasRealCat;
+    if (!hasRealCat) btnStart.style.opacity = ".5";
+    btnStart.addEventListener("click", function(){
+      if (!REAL_CAT_KEYS.some(function(k){ return setupState.enabledCats[k]; })) return;
+      state = newState(setupState.numTeams, setupState.names, setupState.timerSec, setupState.enabledCats, setupState.steps, setupState.teamColors, setupState.languageFilter==="noEnglish", setupState.languageFilter==="brazilOnly");
+      setupEl.hidden = true;
+      gameEl.hidden = false;
+      renderGame();
+    });
+  }
+
+  // ---------------- GAME SCREEN ----------------
+  function houseColor(h){
+    if (h.type === "cat") return CATS[h.cat].color;
+    if (h.type === "special") return "var(--c-special)";
+    return "var(--accent)";
+  }
+  function houseIcon(h){
+    if (h.type === "cat") return CATS[h.cat].icon;
+    if (h.type === "special") return "❓"; // hide which special it is — that's the mystery
+    if (h.type === "start") return "🚩";
+    return "🏁";
+  }
+
+  var COLS = 6;
+  function cellPos(i){
+    var row = Math.floor(i/COLS);
+    var colInRow = i % COLS;
+    var col = (row % 2 === 0) ? colInRow : (COLS-1-colInRow);
+    return {row:row+1, col:col+1};
+  }
+  // Which way the snake path continues from house i to i+1 — the board
+  // wraps rows in alternating directions, so a house at the end of a row
+  // points down into the next one instead of sideways.
+  function pathArrow(i, boardLen){
+    if (i >= boardLen - 1) return null;
+    var cur = cellPos(i), next = cellPos(i+1);
+    if (cur.row !== next.row) return "↓";
+    return next.col > cur.col ? "→" : "←";
+  }
+
+  function renderBoardOnly(){
+    var holder = document.getElementById("boardHolder");
+    if (holder) holder.innerHTML = renderBoardClean();
+  }
+
+  // Steps a team's pawn one house at a time toward toPos, re-rendering just
+  // the board between steps so it visibly walks instead of teleporting.
+  function animateMove(team, fromPos, toPos, onDone){
+    var step = toPos > fromPos ? 1 : (toPos < fromPos ? -1 : 0);
+    if (step === 0){ onDone(); return; }
+    function tick(){
+      team.pos += step;
+      renderBoardOnly();
+      if (team.pos === toPos) setTimeout(onDone, 150);
+      else setTimeout(tick, 220);
+    }
+    setTimeout(tick, 220);
+  }
+
+  function renderBoardClean(){
+    var board = state.board;
+    var rows = Math.ceil(board.length/COLS);
+    var team = state.teams[state.current];
+    var cellsHtml = board.map(function(h, i){
+      var p = cellPos(i);
+      var isTarget = (team && !team.skipNext && team.pos === i);
+      var bg = (h.type==="cat"||h.type==="special") ? houseColor(h) : "var(--accent)";
+      var pawnsHtml = state.teams.filter(function(t){return t.pos === i;})
+        .map(function(t){return '<span class="pawn-pin" style="background:'+t.color+'"></span>';}).join("");
+      var titleLbl = h.type==="cat" ? CATS[h.cat].label : h.type==="special" ? "Casa misteriosa" : (h.type==="start"?"Largada":"Chegada");
+      var inner = (h.type==="start"||h.type==="finish")
+        ? '<span class="ic">'+houseIcon(h)+'</span><span class="num">'+(h.type==="start"?"Início":"Fim")+'</span>'
+        : '<span class="ic">'+houseIcon(h)+'</span><span class="num">'+i+'</span>';
+      var arrow = pathArrow(i, board.length);
+      var arrowHtml = arrow ? '<span class="dir-arrow">'+arrow+'</span>' : '';
+      return '<div class="house'+(h.type==="start"?" is-start":"")+(h.type==="finish"?" is-finish":"")+(isTarget?" is-current-target":"")+'" '+
+        'style="grid-row:'+p.row+'; grid-column:'+p.col+'; '+((h.type==="cat"||h.type==="special")?'background:'+bg+';':'')+'" title="'+titleLbl+'">' +
+        arrowHtml + inner + '<span class="pawns">'+pawnsHtml+'</span></div>';
+    }).join("");
+    return '<div class="board-panel"><h3 class="board-title">Tabuleiro <span class="sub">'+(state.finishIdx-1)+' casas até a chegada</span></h3>' +
+      '<div class="board-grid" style="grid-template-rows:repeat('+rows+', 62px);">'+cellsHtml+'</div></div>';
+  }
+
+  function renderPanel(){
+    var team = state.teams[state.current];
+    var currentHouse = state.board[team.pos];
+    var effectiveCatKey = team.categoryOverride ||
+      (currentHouse.type==="cat" ? currentHouse.cat : (currentHouse.type==="special" ? "aleatoria" : null));
+    var showBoard = state.phase === "idle" || state.phase === "moving" || state.phase === "skipmsg";
+
+    if (showBoard) renderBoardScreen(team, currentHouse, effectiveCatKey);
+    else renderStageScreen(team, currentHouse, effectiveCatKey);
+
+    updateManageButtonState();
+  }
+
+  // Describes the house the pawn is standing on RIGHT NOW — that's the one
+  // being mimicked; a correct guess is what moves the pawn off of it.
+  function targetChipFor(house, effectiveCatKey, categoryOverride){
+    if (house.type === "special" && !categoryOverride){
+      return '<div class="target-chip"><div class="swatch" style="background:var(--c-special)">❓</div>' +
+        '<div><div class="lbl">Casa atual</div><div class="name">Casa misteriosa</div></div></div>';
+    }
+    if (house.type === "start" && !categoryOverride){
+      return '<div class="target-chip"><div class="swatch" style="background:var(--accent)">🎯</div>' +
+        '<div><div class="lbl">Casa atual</div><div class="name">Casa inicial</div></div></div>';
+    }
+    if (effectiveCatKey){
+      var c = CATS[effectiveCatKey];
+      var mysteryNote = house.type === "special" ? " · casa misteriosa" : "";
+      var overrideNote = (categoryOverride && house.type !== "special") ? " (escolhida)" : "";
+      return '<div class="target-chip"><div class="swatch" style="background:'+c.color+'">'+c.icon+'</div>' +
+        '<div><div class="lbl">Categoria da vez</div><div class="name">'+c.label+overrideNote+mysteryNote+'</div></div></div>';
+    }
+    return '<div class="target-chip"><div class="swatch" style="background:var(--accent)">🏁</div>' +
+      '<div><div class="lbl">Casa atual</div><div class="name">Chegada!</div></div></div>';
+  }
+
+  // A sidebar decoding every color/icon on the board — only the categories
+  // actually in play this match, plus the mystery houses.
+  function renderCategoryLegend(){
+    var items = state.activeCatPool.map(function(k){
+      var c = CATS[k];
+      return '<div class="legend-item"><span class="legend-swatch" style="background:'+c.color+'">'+c.icon+'</span>'+c.label+'</div>';
+    }).join("");
+    if (state.aleatoriaEnabled){
+      var a = CATS.aleatoria;
+      items += '<div class="legend-item"><span class="legend-swatch" style="background:'+a.color+'">'+a.icon+'</span>'+a.label+'</div>';
+    }
+    items += '<div class="legend-item"><span class="legend-swatch" style="background:var(--c-special)">❓</span>Casa misteriosa</div>';
+    return '<div class="category-legend"><span class="field-label">Legenda</span>'+items+'</div>';
+  }
+
+  // Full-screen board: shown between turns and during walking animations —
+  // never at the same time as the stage screen, so the board always gets
+  // the whole viewport instead of sharing it with a side panel.
+  function renderBoardScreen(team, currentHouse, effectiveCatKey){
+    var needsCategoryChoice = !team.categoryOverride && state.phase === "idle" &&
+      (currentHouse.type === "start" || currentHouse.type === "special");
+    var actionHtml;
+    if (state.phase === "skipmsg"){
+      actionHtml = '<div class="board-action-msg">'+escapeHtml(team.name)+' perdeu a vez nesta rodada 😅</div>' +
+        '<button class="reveal-btn" id="btnContinueSkip">Passar a vez</button>';
+    } else if (state.phase === "moving"){
+      actionHtml = '<div class="board-action-msg">🚶 Andando para a próxima casa...</div>';
+    } else if (needsCategoryChoice){
+      var choiceMsg = currentHouse.type === "special"
+        ? "Casa misteriosa: escolha a categoria da sua mímica antes de tentar."
+        : "Primeira mímica da equipe: escolha a categoria da sua palavra.";
+      actionHtml = '<div class="board-action-msg">'+choiceMsg+'</div>' +
+        '<button class="reveal-btn" id="btnChooseCategory">🎯 Escolher categoria</button>';
+    } else {
+      actionHtml = '<button class="reveal-btn" id="btnReveal">Próxima mímica 🎬</button>';
+    }
+
+    var scoreRows = state.teams.map(function(t, idx){
+      return '<div class="score-row'+(idx===state.current?" is-current":"")+'">' +
+        '<span class="pawn" style="background:'+t.color+'"></span>' +
+        '<span class="nm">'+escapeHtml(t.name)+(t.skipNext?" (perde próxima)":"")+'</span>' +
+        '<span class="pn">casa '+t.pos+'/'+state.finishIdx+'</span></div>';
+    }).join("");
+
+    gameEl.innerHTML =
+      '<div class="board-screen">' +
+        '<div class="board-main">' +
+          '<button class="ghost-btn exit-btn" id="btnExitInGame">🏠 Menu principal</button>' +
+          '<div class="turn-banner" style="background:'+team.color+'; color:'+team.textColor+'">' +
+            '<span class="pawn-lg" style="background:'+team.color+'; border-color:'+team.textColor+'"></span>' +
+            'Vez de '+escapeHtml(team.name) +
+            '<span class="pos">casa '+team.pos+' de '+state.finishIdx+'</span>' +
+          '</div>' +
+          targetChipFor(currentHouse, effectiveCatKey, team.categoryOverride) +
+          '<div id="boardHolder"></div>' +
+          '<div class="board-action">'+actionHtml+'</div>' +
+          '<div class="scoreboard"><span class="lbl">Placar</span>'+scoreRows+'</div>' +
+          '<button class="rules-toggle" id="btnRules">Como jogar / casas misteriosas</button>' +
+          '<div class="rules-body" id="rulesBody" hidden>' +
+            '<div><b>Regra básica:</b> toque em "Próxima mímica" para ver a palavra e mimicar até a equipe adivinhar ou o tempo acabar.</div>' +
+            '<div><b>🎯 Casa inicial e casas misteriosas:</b> antes de mimicar, a equipe escolhe a categoria da palavra (incluindo "Aleatória", se estiver ativada).</div>' +
+            '<div><b>❓ Casa misteriosa:</b> pode ser uma sorte, um revés ou nada — só se revela ao tentar. Acertando uma sorte boa, ela é sua; errando, nada acontece (só não avança). Acertando um revés, você passa ileso; errando, sofre o revés (voltar 1 casa ou perder a próxima vez). Se for "nada", segue normal: avança 1 casa acertando, 0 errando. Se não conseguir passar, a sorte é sorteada de novo na próxima tentativa.</div>' +
+            '<div><b>🎲 Aleatória:</b> a palavra pode vir de qualquer categoria.</div>' +
+          '</div>' +
+        '</div>' +
+        renderCategoryLegend() +
+      '</div>';
+
+    renderBoardOnly();
+
+    var rb = document.getElementById("btnRules");
+    if (rb) rb.addEventListener("click", function(){
+      document.getElementById("rulesBody").hidden = !document.getElementById("rulesBody").hidden;
+    });
+    var btnExitInGame = document.getElementById("btnExitInGame");
+    if (btnExitInGame) btnExitInGame.addEventListener("click", confirmExitToMenu);
+    var btnReveal = document.getElementById("btnReveal");
+    if (btnReveal) btnReveal.addEventListener("click", function(){ startReveal(effectiveCatKey); });
+    var btnChooseCategory = document.getElementById("btnChooseCategory");
+    if (btnChooseCategory) btnChooseCategory.addEventListener("click", function(){
+      openCategoryPicker(function(){
+        startReveal(state.teams[state.current].categoryOverride);
+      }, true);
+    });
+    var btnContinueSkip = document.getElementById("btnContinueSkip");
+    if (btnContinueSkip) btnContinueSkip.addEventListener("click", function(){
+      state.teams[state.current].skipNext = false;
+      advanceTeamIndex();
+      state.phase = "idle";
+      renderPanel();
+    });
+  }
+
+  // Full-screen stage: only the person mimicking sees this — no board, so
+  // it never shares the screen with it.
+  function renderStageScreen(team, currentHouse, effectiveCatKey){
+    var chip = targetChipFor(currentHouse, effectiveCatKey, team.categoryOverride);
+    var body;
+    if (state.phase === "revealed"){
+      body = '<div class="prompt">Mimique isto:</div>' +
+        renderWordDisplay(state.activeWord, state.activeCatKey) +
+        '<div class="timer-wrap"><div class="timer-bar-track"><div class="timer-bar-fill" id="timerFill" style="width:'+(state.remaining/state.timerSec*100)+'%"></div></div>' +
+        '<div class="timer-num" id="timerNum">'+state.remaining+'s</div></div>' +
+        '<div class="result-btns"><button class="btn-ok" id="btnAcertou">✅ Acertou</button><button class="btn-skip" id="btnPular">⏭️ Pular</button></div>';
+    } else {
+      body = '<div class="prompt">⏱️ Tempo esgotado!</div>' + renderWordDisplay(state.activeWord, state.activeCatKey) +
+        '<button class="btn-continue" id="btnContinueTimeup">Passar a vez</button>';
+    }
+
+    gameEl.innerHTML =
+      '<div class="stage-screen">' +
+        '<button class="ghost-btn exit-btn" id="btnExitInGame">🏠 Menu principal</button>' +
+        '<div class="turn-banner" style="background:'+team.color+'; color:'+team.textColor+'">' +
+          '<span class="pawn-lg" style="background:'+team.color+'; border-color:'+team.textColor+'"></span>' +
+          'Vez de '+escapeHtml(team.name) +
+        '</div>' +
+        chip +
+        '<div class="stage stage-big">'+body+'</div>' +
+      '</div>';
+
+    var btnExitInGame = document.getElementById("btnExitInGame");
+    if (btnExitInGame) btnExitInGame.addEventListener("click", confirmExitToMenu);
+    var btnAcertou = document.getElementById("btnAcertou");
+    if (btnAcertou) btnAcertou.addEventListener("click", function(){ scoreSuccess(); });
+    var btnPular = document.getElementById("btnPular");
+    if (btnPular) btnPular.addEventListener("click", function(){ vibrate(50); handleMimicFailure(); });
+    var btnContinueTimeup = document.getElementById("btnContinueTimeup");
+    if (btnContinueTimeup) btnContinueTimeup.addEventListener("click", function(){ handleMimicFailure(); });
+    wireHintToggle();
+  }
+
+  // Best-effort haptic buzz — silently does nothing on devices/browsers
+  // without vibration support (notably iOS Safari).
+  function vibrate(pattern){
+    try{ if (navigator.vibrate) navigator.vibrate(pattern); } catch(e){}
+  }
+
+  // Synthesizes a short alarm beep with the Web Audio API — no audio file
+  // needed, and it can't play until a user gesture unlocks the context,
+  // which the "Próxima mímica" tap already provides.
+  var audioCtx = null;
+  function playTimeUpAlarm(){
+    vibrate([120, 80, 120, 80, 120]);
+    try{
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var beepTimes = [0, 0.18, 0.36];
+      beepTimes.forEach(function(t){
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = "square";
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + t + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime + t);
+        osc.stop(audioCtx.currentTime + t + 0.16);
+      });
+    } catch(e){ /* Web Audio unavailable — fail silently, timer UI still shows time's up */ }
+  }
+
+  // A brief two-note chime for a correct guess — quieter and shorter than
+  // the alarm so it stays pleasant even with many guesses in a row.
+  function playCorrectDing(){
+    vibrate(50);
+    try{
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      [ [0, 880], [0.09, 1320] ].forEach(function(pair){
+        var t = pair[0], freq = pair[1];
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + t + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + t + 0.14);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime + t);
+        osc.stop(audioCtx.currentTime + t + 0.15);
+      });
+    } catch(e){ /* Web Audio unavailable — fail silently */ }
+  }
+
+  // A soft, rising-pitch tick for the last 5 seconds of the timer — a
+  // quiet urgency cue leading into the time's-up alarm.
+  function playCountdownTick(secondsLeft){
+    try{
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 500 + (5 - secondsLeft) * 60;
+      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.09);
+      vibrate(20);
+    } catch(e){ /* Web Audio unavailable — fail silently */ }
+  }
+
+  function startReveal(catKey){
+    var draw = drawWord(catKey);
+    state.activeWord = draw.word;
+    state.activeCatKey = draw.catKey;
+    state.remaining = state.timerSec;
+    state.phase = "revealed";
+    renderPanel();
+    clearInterval(state.timerId);
+    var start = Date.now();
+    var total = state.timerSec;
+    var lastTickedSecond = null;
+    state.timerId = setInterval(function(){
+      var elapsed = (Date.now()-start)/1000;
+      var rem = Math.max(0, total - elapsed);
+      state.remaining = Math.ceil(rem);
+      var fill = document.getElementById("timerFill");
+      var num = document.getElementById("timerNum");
+      if (fill) fill.style.width = (rem/total*100)+"%";
+      if (num) num.textContent = state.remaining+"s";
+      if (state.remaining >= 1 && state.remaining <= 5 && state.remaining !== lastTickedSecond){
+        lastTickedSecond = state.remaining;
+        playCountdownTick(state.remaining);
+      }
+      if (rem <= 0){
+        clearInterval(state.timerId);
+        state.phase = "timeup";
+        playTimeUpAlarm();
+        renderPanel();
+      }
+    }, 100);
+  }
+
+  function clearTeamOverride(){
+    state.teams[state.current].categoryOverride = null;
+  }
+
+  // Tallies one mimicry attempt against the team's running stats — powers
+  // the end-of-game report (acertos/erros and best/worst category).
+  function recordAttempt(team, correct){
+    var catKey = state.activeCatKey;
+    if (correct) team.correct++; else team.wrong++;
+    if (!catKey) return;
+    if (!team.byCategory[catKey]) team.byCategory[catKey] = {correct:0, wrong:0};
+    if (correct) team.byCategory[catKey].correct++;
+    else team.byCategory[catKey].wrong++;
+  }
+
+  // A correct guess resolves the house the pawn is standing on and moves it
+  // 1 house forward. If that house was a mystery, its hidden nature adds a
+  // bonus on top: a good one is won outright (extra advance); a bad one is
+  // simply dodged — no penalty at all, since success means passing it
+  // unharmed; a neutral one just does nothing either way, good or bad.
+  function scoreSuccess(){
+    clearInterval(state.timerId);
+    playCorrectDing();
+    var team = state.teams[state.current];
+    recordAttempt(team, true);
+    var house = state.board[team.pos];
+    // Choosing "Aleatória" whenever a category choice is offered doubles
+    // the normal advance on a correct guess — a risk/reward for not
+    // knowing which category the word will come from.
+    var baseAdvance = team.categoryOverride === "aleatoria" ? 2 : 1;
+    var advanceTo = Math.min(team.pos + baseAdvance, state.finishIdx);
+    clearTeamOverride();
+    state.phase = "moving";
+    renderPanel();
+    if (house.type === "special" && house.sp === "avance2"){
+      animateMove(team, team.pos, advanceTo, function(){
+        animateMove(team, team.pos, Math.min(advanceTo+2, state.finishIdx), finishTurnCheckWin);
+      });
+    } else { // plain category, or special that was volte1/perdeVez/nada but succeeded: just the normal advance
+      animateMove(team, team.pos, advanceTo, finishTurnCheckWin);
+    }
+  }
+
+  function finishTurnCheckWin(){
+    var team = state.teams[state.current];
+    if (team.pos >= state.finishIdx){
+      state.winner = team;
+      renderWin();
+      return;
+    }
+    endTurn();
+  }
+
+  // A wrong/skipped/timed-out guess never moves the team — same as failing
+  // at any normal house. The only extra bit for a mystery house: if its
+  // hidden nature was bad, the setback lands now; either way its nature is
+  // re-rolled, so the next attempt at it is a fresh mystery again.
+  function handleMimicFailure(){
+    clearInterval(state.timerId);
+    var team = state.teams[state.current];
+    recordAttempt(team, false);
+    var house = state.board[team.pos];
+    if (house.type === "special"){
+      var sp = house.sp;
+      rerollSpecial(house);
+      if (sp === "volte1"){
+        state.phase = "moving";
+        renderPanel();
+        animateMove(team, team.pos, Math.max(team.pos-1, 0), endTurn);
+        return;
+      }
+      if (sp === "perdeVez"){ team.skipNext = true; }
+    }
+    endTurn();
+  }
+
+  function openCategoryPicker(onChosen, allowAleatoria){
+    var keys = state.activeCatPool.slice();
+    if (allowAleatoria && state.aleatoriaEnabled) keys.push("aleatoria");
+    var btns = keys.map(function(k){
+      var c = CATS[k];
+      var note = k === "aleatoria" ? '<small>Acertando, anda o dobro!</small>' : "";
+      return '<button class="cat-pick-btn" data-cat="'+k+'" style="background:'+c.color+'"><span>'+c.icon+'</span>'+c.label+note+'</button>';
+    }).join("");
+    modalLayer.innerHTML = '<div class="modal-overlay"><div class="modal-card">' +
+      '<h3>🎁 Escolha a categoria</h3>' +
+      '<p style="color:var(--text-muted); font-size:.9rem; margin:0;">Sua próxima palavra virá da categoria que você escolher.</p>' +
+      '<div class="cat-pick-grid">'+btns+'</div>' +
+      '<button class="ghost-btn" id="btnCatPickBack" style="align-self:center;">← Voltar</button>' +
+      '</div></div>';
+    var btnCatPickBack = document.getElementById("btnCatPickBack");
+    if (btnCatPickBack) btnCatPickBack.addEventListener("click", function(){ modalLayer.innerHTML = ""; });
+    modalLayer.querySelectorAll("[data-cat]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        state.teams[state.current].categoryOverride = btn.getAttribute("data-cat");
+        modalLayer.innerHTML = "";
+        (onChosen || endTurn)();
+      });
+    });
+  }
+
+  // Just moves to the next team in rotation. Whether that team owes a
+  // skipped turn (from a mystery house's "perca a vez" revés) is handled
+  // right after, in endTurn — that's what shows the "perdeu a vez" screen
+  // instead of silently skipping them.
+  function advanceTeamIndex(){
+    state.current = (state.current + 1) % state.teams.length;
+  }
+
+  function endTurn(){
+    clearInterval(state.timerId);
+    var justFinishedTeam = state.teams[state.current];
+    if (justFinishedTeam.pos >= state.finishIdx){
+      state.winner = justFinishedTeam;
+      renderWin();
+      return;
+    }
+    advanceTeamIndex();
+    if (state.teams[state.current].skipNext){
+      state.teams[state.current].skipNext = false;
+      state.phase = "skipmsg";
+    } else {
+      state.phase = "idle";
+    }
+    renderPanel();
+  }
+
+  // Picks, for one team, the category it landed the most correct guesses in
+  // and the one it missed the most — the two headline stats of its report.
+  function bestWorstCategory(team){
+    var bestKey = null, bestVal = 0, worstKey = null, worstVal = 0;
+    Object.keys(team.byCategory).forEach(function(k){
+      var s = team.byCategory[k];
+      if (s.correct > bestVal){ bestVal = s.correct; bestKey = k; }
+      if (s.wrong > worstVal){ worstVal = s.wrong; worstKey = k; }
+    });
+    return {bestKey: bestKey, worstKey: worstKey};
+  }
+
+  function renderWin(){
+    var ranked = state.teams.slice().sort(function(a,b){ return b.pos - a.pos; });
+    var reportRows = ranked.map(function(t, idx){
+      var bw = bestWorstCategory(t);
+      var bestLabel = bw.bestKey ? CATS[bw.bestKey].icon+' '+CATS[bw.bestKey].label : '—';
+      var worstLabel = bw.worstKey ? CATS[bw.worstKey].icon+' '+CATS[bw.worstKey].label : '—';
+      return '<div class="team-report-row">' +
+        '<div class="team-report-head"><span class="pawn" style="background:'+t.color+'"></span>'+escapeHtml(t.name)+(idx===0?' 🏆':'')+'</div>' +
+        '<div class="team-report-stats"><span>✅ '+t.correct+' acertos</span><span>❌ '+t.wrong+' erros</span></div>' +
+        '<div class="team-report-cats"><span>Mais acertou: '+bestLabel+'</span><span>Mais errou: '+worstLabel+'</span></div>' +
+      '</div>';
+    }).join("");
+
+    modalLayer.innerHTML = '<div class="modal-overlay"><div class="modal-card modal-card-wide">' +
+      '<div class="confetti-emoji">🏆</div>' +
+      '<h3>'+escapeHtml(state.winner.name)+' venceu!</h3>' +
+      '<p style="color:var(--text-muted); margin:0;">Chegou primeiro ao final do tabuleiro. 🎉</p>' +
+      '<div class="team-report-list">'+reportRows+'</div>' +
+      '<button class="start-btn" id="btnPlayAgain" style="align-self:center;">Jogar novamente</button>' +
+      '</div></div>';
+    document.getElementById("btnPlayAgain").addEventListener("click", function(){
+      modalLayer.innerHTML = "";
+      state = newState(setupState.numTeams, setupState.names, setupState.timerSec, setupState.enabledCats, setupState.steps, setupState.teamColors, setupState.languageFilter==="noEnglish", setupState.languageFilter==="brazilOnly");
+      renderGame();
+    });
+  }
+
+  function renderGame(){
+    renderPanel();
+  }
+
+  function confirmExitToMenu(){
+    modalLayer.innerHTML = '<div class="modal-overlay"><div class="modal-card">' +
+      '<h3>Sair para o menu principal?</h3>' +
+      '<p style="color:var(--text-muted); margin:0;">A partida em andamento será perdida.</p>' +
+      '<div class="result-btns"><button class="btn-skip" id="btnExitCancel">Cancelar</button><button class="btn-ok" id="btnExitConfirm">Sair</button></div>' +
+      '</div></div>';
+    document.getElementById("btnExitCancel").addEventListener("click", function(){ modalLayer.innerHTML = ""; });
+    document.getElementById("btnExitConfirm").addEventListener("click", exitToMenu);
+  }
+  function exitToMenu(){
+    if (state) clearInterval(state.timerId);
+    modalLayer.innerHTML = "";
+    gameEl.hidden = true;
+    setupEl.hidden = false;
+    renderSetup();
+  }
+
+  // ---------------- MANAGE WORDS SCREEN ----------------
+  function updateManageButtonState(){
+    var midReveal = !gameEl.hidden && state && (state.phase === "revealed" || state.phase === "moving");
+    btnManage.disabled = !!midReveal;
+    btnManage.title = midReveal ? "Aguarde o fim da rodada para editar as palavras" : "";
+  }
+
+  function renderManage(){
+    var catKeys = Object.keys(CATS).filter(function(k){ return k !== "aleatoria"; });
+    var mFilter = manageState.languageFilter;
+    var tabs = catKeys.map(function(k){
+      var c = CATS[k];
+      var active = manageState.activeCat === k;
+      var style = active ? "background:"+c.color+";border-color:"+c.color+";color:#fff;" : "";
+      var total = wordBank[k].length;
+      var countLabel = mFilter === "none"
+        ? String(total)
+        : wordsForMatch(k, mFilter === "noEnglish", mFilter === "brazilOnly").length + "/" + total;
+      return '<button class="chip" data-mcat="'+k+'" style="'+style+'">'+c.icon+' '+c.label+' ('+countLabel+')</button>';
+    }).join("");
+
+    var cat = manageState.activeCat;
+    var c = CATS[cat];
+    var filter = manageState.languageFilter;
+    var filteredWords = wordsForMatch(cat, filter === "noEnglish", filter === "brazilOnly");
+    var filteredSet = {};
+    filteredWords.forEach(function(w){ filteredSet[w] = true; });
+    var hasTag = !!(NON_BRAZILIAN[cat] || ENGLISH_ONLY[cat]);
+    var wordsHtml = wordBank[cat].map(function(w){
+      var excluded = filter !== "none" && !filteredSet[w];
+      return '<span class="word-chip'+(excluded?' is-filtered-out':'')+'" style="background:'+c.color+'">'+escapeHtml(w)+
+        '<button class="word-x" data-rm="'+encodeURIComponent(w)+'" aria-label="Remover '+escapeHtml(w)+'">×</button></span>';
+    }).join("") || '<span style="color:var(--text-muted); font-weight:600; font-size:.9rem;">Nenhuma palavra ainda — adicione a primeira abaixo.</span>';
+
+    var langChips = '<div class="chip-row">' +
+      '<button class="chip'+(filter==="none"?' is-active':'')+'" data-mlangfilter="none">Sem filtros</button>' +
+      '<button class="chip'+(filter==="noEnglish"?' is-active':'')+'" data-mlangfilter="noEnglish">🌐 Sem inglês</button>' +
+      '<button class="chip'+(filter==="brazilOnly"?' is-active':'')+'" data-mlangfilter="brazilOnly">🇧🇷 Versão brasileira</button>' +
+      '</div>' +
+      (filter !== "none"
+        ? '<p class="lede">'+(hasTag
+            ? 'Esmaecidas: ficariam de fora com esse filtro ativado ('+filteredWords.length+' de '+wordBank[cat].length+' continuam).'
+            : 'Esta categoria não distingue idioma/origem — nenhuma palavra é afetada por este filtro.')+'</p>'
+        : "");
+
+    var statusNote = dbAvailable
+      ? "As mudanças ficam salvas neste aparelho."
+      : "Armazenamento indisponível agora: as mudanças valem só para esta sessão.";
+
+    manageEl.innerHTML =
+      '<div class="setup-card">' +
+        '<div><h2>Gerenciar palavras</h2><p class="lede">'+statusNote+'</p></div>' +
+        '<div class="field-group"><span class="field-label">Categoria</span><div class="chip-row">'+tabs+'</div></div>' +
+        '<div class="field-group"><span class="field-label">Ver com o filtro</span>'+langChips+'</div>' +
+        '<div class="field-group">' +
+          '<span class="field-label">'+c.icon+' '+c.label+'</span>' +
+          '<div class="word-list">'+wordsHtml+'</div>' +
+          '<div class="add-word-row">' +
+            '<input type="text" id="newWordInput" placeholder="Adicionar palavra..." maxlength="60">' +
+            '<button class="chip is-active" id="btnAddWord">Adicionar</button>' +
+          '</div>' +
+        '</div>' +
+        '<button class="ghost-btn" id="btnBackFromManage" style="align-self:flex-start;">← Voltar</button>' +
+      '</div>';
+
+    manageEl.querySelectorAll("[data-mcat]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        manageState.activeCat = btn.getAttribute("data-mcat");
+        renderManage();
+      });
+    });
+    manageEl.querySelectorAll("[data-mlangfilter]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        manageState.languageFilter = btn.getAttribute("data-mlangfilter");
+        renderManage();
+      });
+    });
+    manageEl.querySelectorAll("[data-rm]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        removeWord(cat, decodeURIComponent(btn.getAttribute("data-rm")));
+      });
+    });
+    var input = document.getElementById("newWordInput");
+    document.getElementById("btnAddWord").addEventListener("click", function(){
+      addWord(cat, input.value); input.value = ""; input.focus();
+    });
+    input.addEventListener("keydown", function(e){
+      if (e.key === "Enter"){ addWord(cat, input.value); input.value = ""; }
+    });
+    document.getElementById("btnBackFromManage").addEventListener("click", closeManage);
+  }
+
+  function openManage(){
+    if (btnManage.disabled) return;
+    manageState.returnTo = gameEl.hidden ? "setup" : "game";
+    setupEl.hidden = true;
+    gameEl.hidden = true;
+    manageEl.hidden = false;
+    renderManage();
+  }
+  function closeManage(){
+    manageEl.hidden = true;
+    if (manageState.returnTo === "game"){ gameEl.hidden = false; }
+    else { setupEl.hidden = false; renderSetup(); }
+  }
+  btnManage.addEventListener("click", openManage);
+
+  renderSetup();
+  initWordBank();
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+}
+</script>
+</body>
+</html>
