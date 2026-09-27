@@ -1,5 +1,5 @@
-// Gerado por build-app.js — versão 504155932c
-const CACHE = "mimica-504155932c";
+// Gerado por build-app.js — versão c376d4c51d
+const CACHE = "mimica-c376d4c51d";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-180.png"];
 
 self.addEventListener("install", (e) => {
