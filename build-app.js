@@ -35,6 +35,28 @@ src = src.replace(
 );
 if (src.includes("valem para todos os dispositivos")) throw new Error("Texto de status não substituído");
 
+// As fotos das dicas vêm embutidas (data URI) no mimica.html. No app elas viram
+// arquivos em ./docs/hints/ — o index.html fica leve e cada foto só é baixada
+// quando a dica é aberta. O nome leva o hash do conteúdo, então foto nova ou
+// alterada muda o index.html e, com isso, a versão do cache.
+const HINTS_DIR = path.join(OUT, "hints");
+const EXT = { "/9j/": "jpg", "iVBOR": "png", "R0lGOD": "gif", "UklGR": "webp" };
+const hintFiles = {};
+const imgStart = src.indexOf("var HINT_IMAGES = {");
+const imgEnd = src.indexOf("\n  };", imgStart);
+if (imgStart < 0 || imgEnd < 0) throw new Error("HINT_IMAGES não encontrado");
+const imgBlock = src.slice(imgStart, imgEnd).replace(/"data:image\/[a-z+]+;base64,([A-Za-z0-9+/=]+)"/g, function(_, b64){
+  const buf = Buffer.from(b64, "base64");
+  const prefix = Object.keys(EXT).find((p) => b64.startsWith(p));
+  if (!prefix) throw new Error("Formato de imagem desconhecido: " + b64.slice(0, 12));
+  const name = crypto.createHash("sha1").update(buf).digest("hex").slice(0, 12) + "." + EXT[prefix];
+  hintFiles[name] = buf;
+  return JSON.stringify("hints/" + name);
+});
+if (imgBlock.includes("data:image")) throw new Error("Sobrou imagem embutida em HINT_IMAGES");
+src = src.slice(0, imgStart) + imgBlock + src.slice(imgEnd);
+const hintPaths = Object.keys(hintFiles).map((n) => "hints/" + n);
+
 
 const head = `<!doctype html>
 <html lang="pt-BR">
@@ -98,9 +120,13 @@ const version = crypto.createHash("sha1").update(html).digest("hex").slice(0, 10
 const sw = `// Gerado por build-app.js — versão ${version}
 const CACHE = "mimica-${version}";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-180.png"];
+// Fotos das dicas: baixadas em segundo plano pra funcionarem offline, sem
+// travar a instalação se alguma falhar (quem faltar vem da rede depois).
+const HINT_PHOTOS = ${JSON.stringify(hintPaths)};
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  caches.open(CACHE).then((c) => Promise.all(HINT_PHOTOS.map((u) => c.add(u).catch(() => {})))).catch(() => {});
 });
 
 self.addEventListener("activate", (e) => {
@@ -134,6 +160,9 @@ self.addEventListener("fetch", (e) => {
 `;
 
 fs.mkdirSync(OUT, { recursive: true });
+fs.rmSync(HINTS_DIR, { recursive: true, force: true });
+fs.mkdirSync(HINTS_DIR, { recursive: true });
+Object.keys(hintFiles).forEach((n) => fs.writeFileSync(path.join(HINTS_DIR, n), hintFiles[n]));
 fs.writeFileSync(path.join(OUT, "index.html"), html);
 fs.writeFileSync(path.join(OUT, "manifest.webmanifest"), JSON.stringify(manifest, null, 2));
 fs.writeFileSync(path.join(OUT, "sw.js"), sw);
