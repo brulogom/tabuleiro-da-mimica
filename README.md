@@ -158,6 +158,33 @@ A pasta `docs/` é uma versão **PWA** do jogo: seus amigos abrem o link no nave
 
 - **Gerar/atualizar o app:** depois de mudar `mimica.html`, rode `node build-app.js` — ele recria `docs/index.html`, `docs/manifest.webmanifest` e `docs/sw.js`. Depois é só pedir pro Claude fazer commit + push (ou rodar `git add -A && git commit -m "Atualiza app" && git push`); os aparelhos pegam a versão nova sozinhos na próxima vez que abrirem com internet.
 - **Palavras no app:** fora do claude.ai não existe o banco de dados do artifact, então no app as edições em "Gerenciar palavras" ficam salvas **só naquele aparelho** (localStorage). A lista padrão é a de `DEFAULT_WORDS`.
+- **Página inicial do app:** desde a versão Jogos de Festa, `docs/index.html` é o **menu com todos os jogos** (seção 9) e a mímica fica em `docs/mimica.html`, com o botão "🎉 Todos os jogos" para voltar.
 - **Como instalar:**
   - **Android (Chrome):** abrir o link → menu ⋮ → "Instalar app" (ou "Adicionar à tela inicial").
   - **iPhone/iPad (Safari):** abrir o link → botão Compartilhar → "Adicionar à Tela de Início".
+
+---
+
+## 9. Jogos de Festa (menu com vários jogos)
+
+A pasta `festa/` é o app de vários jogos, seguindo as especificações dos arquivos `README-*.md` desta pasta. Ele abre num menu com a noite de jogos, os jogadores e o placar geral:
+
+| Jogo / recurso | Arquivo |
+|---|---|
+| Menu, início da noite, jogadores, placar, histórico e pódio | `festa/js/hub.js` |
+| Componentes compartilhados (noite, sons, cronômetro, tela de privacidade, times, resultado) | `festa/js/core.js` |
+| Cálculos do placar e sorteio (sem DOM, testados) | `festa/js/calculos.js` |
+| Sorteador de dedos | `festa/js/jogos/sorteador.js` |
+| Tabuleiro da Mímica (abre a página `mimica.html`) | `festa/js/jogos/mimica.js` |
+| Quem sou eu? | `festa/js/jogos/quem-sou-eu.js` |
+| Palavra proibida | `festa/js/jogos/palavra-proibida.js` |
+| Impostor | `festa/js/jogos/impostor.js` |
+| Roda das letras | `festa/js/jogos/roda-das-letras.js` |
+| Telefone sem fio desenhado | `festa/js/jogos/telefone.js` |
+| Cidade Dorme | `festa/js/jogos/cidade-dorme.js` |
+
+- **Conteúdo** (baralhos, temas, cartas, categorias, frases) fica em `festa/conteudo/*.js`, um arquivo por jogo. Cada item tem `publico: "livre"` ou `"adulto"` (o modo Adultos é escolhido ao começar a noite).
+- **Abrir no computador:** dá para abrir `festa/index.html` direto no navegador. Para testar o app completo (com a mímica), rode `node build-app.js` e sirva a pasta `docs/`.
+- **Testes:** `node festa/testes.js` (empates da tabela de pontos, totais, validação do `registrarPartida` e justiça do sorteio com 10 mil sorteios).
+- **Tudo fica salvo no aparelho** (localStorage): a noite em andamento, as 10 últimas noites encerradas, as configurações de cada jogo e as cartas removidas com 🚫.
+- **Ainda não integrado:** a Mímica não envia resultado para o placar geral (as equipes dela não são ligadas aos jogadores da noite). Dá para lançar os pontos com "± Ajuste" no placar.

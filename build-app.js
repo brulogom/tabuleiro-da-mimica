@@ -1,4 +1,5 @@
-// Gera a versão instalável (PWA) do jogo em ./docs a partir de ./mimica.html.
+// Gera a versão instalável (PWA) em ./docs: o menu Jogos de Festa (./festa) vira a
+// página inicial e a mímica (./mimica.html) fica em docs/mimica.html.
 // Uso: node build-app.js
 const fs = require("fs");
 const path = require("path");
@@ -34,6 +35,11 @@ src = src.replace(
   "As mudanças ficam salvas neste aparelho."
 );
 if (src.includes("valem para todos os dispositivos")) throw new Error("Texto de status não substituído");
+
+// No app, a mímica ganha um botão para voltar ao menu com todos os jogos.
+const headerActions = '<div class="header-actions">';
+if (!src.includes(headerActions)) throw new Error("Cabeçalho da mímica não encontrado");
+src = src.replace(headerActions, headerActions + '\n      <a class="ghost-btn" href="./" style="text-decoration:none">🎉 Todos os jogos</a>');
 
 // As fotos das dicas vêm embutidas (data URI) no mimica.html. No app elas viram
 // arquivos em ./docs/hints/ — o index.html fica leve e cada foto só é baixada
@@ -97,10 +103,41 @@ const bodyStart = src.indexOf('<div class="wrap">');
 if (bodyStart < 0) throw new Error("Início do corpo não encontrado");
 const html = head + src.slice(0, bodyStart) + safeAreaTail + "</head>\n<body>\n" + src.slice(bodyStart) + swRegister;
 
+// ---------- Jogos de Festa (./festa) → página inicial do app ----------
+const FESTA = path.join(ROOT, "festa");
+const festaFiles = {}; // caminho publicado → conteúdo
+(function copiar(dir, rel) {
+  fs.readdirSync(dir, { withFileTypes: true }).forEach((d) => {
+    const r = rel ? rel + "/" + d.name : d.name;
+    if (d.isDirectory()) return copiar(path.join(dir, d.name), r);
+    if (r === "testes.js") return; // testes rodam no node, não vão para o app
+    festaFiles[r] = fs.readFileSync(path.join(dir, d.name));
+  });
+})(FESTA, "");
+if (!festaFiles["index.html"]) throw new Error("festa/index.html não encontrado");
+
+// Endereço da mímica: no fonte é ../mimica.html; no app fica na mesma pasta.
+const core = festaFiles["js/core.js"].toString("utf8");
+if (!core.includes('F.MIMICA_URL = "../mimica.html"')) throw new Error("MIMICA_URL não encontrado em festa/js/core.js");
+festaFiles["js/core.js"] = Buffer.from(core.replace('F.MIMICA_URL = "../mimica.html"', 'F.MIMICA_URL = "mimica.html"'));
+
+const pwaHead = `<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Jogos de Festa">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+`;
+let festaIndex = festaFiles["index.html"].toString("utf8");
+if (!festaIndex.includes("</head>") || !festaIndex.includes("</body>")) throw new Error("festa/index.html sem </head> ou </body>");
+festaIndex = festaIndex.replace("</head>", pwaHead + "</head>").replace("</body>", swRegister.replace("</body>\n</html>\n", "") + "</body>");
+festaFiles["index.html"] = Buffer.from(festaIndex);
+
 const manifest = {
-  name: "Tabuleiro da Mímica",
-  short_name: "Mímica",
-  description: "Jogo de mímica em tabuleiro para jogar em equipes.",
+  name: "Jogos de Festa",
+  short_name: "Jogos de Festa",
+  description: "Jogos de festa para jogar em grupo com um único tablet: mímica, impostor, quem sou eu e mais.",
   lang: "pt-BR",
   start_url: "./",
   scope: "./",
@@ -115,11 +152,16 @@ const manifest = {
   ]
 };
 
-const version = crypto.createHash("sha1").update(html).digest("hex").slice(0, 10);
+const hash = crypto.createHash("sha1").update(html);
+Object.keys(festaFiles).sort().forEach((k) => hash.update(k).update(festaFiles[k]));
+const version = hash.digest("hex").slice(0, 10);
+
+const shell = ["./", "index.html", "mimica.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-180.png"]
+  .concat(Object.keys(festaFiles).filter((k) => k !== "index.html"));
 
 const sw = `// Gerado por build-app.js — versão ${version}
-const CACHE = "mimica-${version}";
-const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-180.png"];
+const CACHE = "festa-${version}";
+const SHELL = ${JSON.stringify(shell)};
 // Fotos das dicas: baixadas em segundo plano pra funcionarem offline, sem
 // travar a instalação se alguma falhar (quem faltar vem da rede depois).
 const HINT_PHOTOS = ${JSON.stringify(hintPaths)};
@@ -132,21 +174,21 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("mimica-") && k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => (k.startsWith("mimica-") || k.startsWith("festa-")) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-// Página: tenta a rede (pra pegar versão nova) e cai pro cache se estiver offline.
-// Demais arquivos (ícones, fontes do Google): cache primeiro.
+// Páginas: tentam a rede (pra pegar versão nova) e caem pro cache se estiver offline.
+// Demais arquivos (scripts, ícones, fontes do Google): cache primeiro.
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req)
-        .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put("index.html", copy)); return res; })
-        .catch(() => caches.match("index.html"))
+        .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
+        .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match("index.html")))
     );
     return;
   }
@@ -163,7 +205,13 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.rmSync(HINTS_DIR, { recursive: true, force: true });
 fs.mkdirSync(HINTS_DIR, { recursive: true });
 Object.keys(hintFiles).forEach((n) => fs.writeFileSync(path.join(HINTS_DIR, n), hintFiles[n]));
-fs.writeFileSync(path.join(OUT, "index.html"), html);
+fs.writeFileSync(path.join(OUT, "mimica.html"), html);
+["css", "js", "conteudo"].forEach((d) => fs.rmSync(path.join(OUT, d), { recursive: true, force: true }));
+Object.keys(festaFiles).forEach((k) => {
+  const destino = path.join(OUT, ...k.split("/"));
+  fs.mkdirSync(path.dirname(destino), { recursive: true });
+  fs.writeFileSync(destino, festaFiles[k]);
+});
 fs.writeFileSync(path.join(OUT, "manifest.webmanifest"), JSON.stringify(manifest, null, 2));
 fs.writeFileSync(path.join(OUT, "sw.js"), sw);
 fs.writeFileSync(path.join(OUT, ".nojekyll"), "");

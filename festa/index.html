@@ -9,13 +9,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="css/festa.css">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Jogos de Festa">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 </head>
 <body>
 <div id="app"></div>
@@ -41,12 +34,6 @@
   var naSessao = false;
   try { naSessao = sessionStorage.getItem("festa:sessao") === "1"; } catch (e) {}
   if (F.noite && naSessao) F.hub.menu(); else F.hub.inicio();
-</script>
-
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
-}
 </script>
 </body>
 </html>

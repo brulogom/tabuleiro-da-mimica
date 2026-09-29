@@ -1,7 +1,7 @@
 {
-  "name": "Tabuleiro da Mímica",
-  "short_name": "Mímica",
-  "description": "Jogo de mímica em tabuleiro para jogar em equipes.",
+  "name": "Jogos de Festa",
+  "short_name": "Jogos de Festa",
+  "description": "Jogos de festa para jogar em grupo com um único tablet: mímica, impostor, quem sou eu e mais.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
