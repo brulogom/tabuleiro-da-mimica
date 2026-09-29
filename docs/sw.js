@@ -1,5 +1,5 @@
-// Gerado por build-app.js — versão 522c12531b
-const CACHE = "festa-522c12531b";
+// Gerado por build-app.js — versão 66e721f74c
+const CACHE = "festa-66e721f74c";
 const SHELL = ["./","index.html","mimica.html","manifest.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/icon-180.png","conteudo/impostor.js","conteudo/palavra-proibida.js","conteudo/quem-sou-eu.js","conteudo/roda-das-letras.js","conteudo/telefone.js","css/festa.css","js/calculos.js","js/core.js","js/hub.js","js/jogos/cidade-dorme.js","js/jogos/impostor.js","js/jogos/mimica.js","js/jogos/palavra-proibida.js","js/jogos/quem-sou-eu.js","js/jogos/roda-das-letras.js","js/jogos/sorteador.js","js/jogos/telefone.js"];
 // Fotos das dicas: baixadas em segundo plano pra funcionarem offline, sem
 // travar a instalação se alguma falhar (quem faltar vem da rede depois).

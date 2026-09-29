@@ -204,6 +204,11 @@
             });
             if (!opcoes.length) pronto();
           },
+          bot: (pronto) => {
+            const opcoes = candidatos.filter((id) => id !== eleitor.id);
+            if (opcoes.length) votos[F.sortear(opcoes)] += 1;
+            pronto();
+          },
           aoConcluir: () => { i += 1; prox(); },
         });
       };

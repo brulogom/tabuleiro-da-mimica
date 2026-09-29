@@ -168,6 +168,24 @@
         layoutTimerTam();
         cron.iniciar();
         atualizarQuem();
+        agendarBot(seg);
+      }
+      // Vez de um bot: toca numa letra livre depois de um tempo aleatório. Às vezes trava e estoura
+      // o tempo — mais fácil de acontecer quando sobram poucas letras (de 10% a 45%).
+      let jogadaBot = 0;
+      function agendarBot(seg) {
+        const minha = ++jogadaBot;
+        if (!F.ehBot(R.vez)) return;
+        const chanceTravar = 10 + Math.round((35 * R.usadas.size) / LETRAS.length);
+        if (F.randInt(100) < chanceTravar) return;
+        const quando = 1200 + F.randInt(Math.max(1, seg * 1000 - 2200));
+        const tentar = () => {
+          if (minha !== jogadaBot || R.acabou || !F.ehBot(R.vez)) return;
+          if (R.pausado || R.transicao || performance.now() - R.ultimoToque < 500) { F.timeout(tentar, 600); return; }
+          const livres = LETRAS.filter((l) => !R.usadas.has(l));
+          if (livres.length) tocar(F.sortear(livres));
+        };
+        F.timeout(tentar, quando);
       }
       function layoutTimerTam() { const tam = roda.clientWidth; if (cron) cron.el.style.setProperty("--tam", Math.round(tam / 4.2) + "px"); }
 

@@ -26,17 +26,10 @@
             <button class="btn sec bloco" id="nova">Começar nova noite</button>
           </div>` : `<div class="card" style="width:min(560px,100%)">
             <h2>Nova noite de jogos</h2>
-            <span class="rotulo">Público</span>
-            <div class="chips" style="justify-content:center">
-              <button class="chip radio ativo" data-pub="livre">👨‍👩‍👧 Família</button>
-              <button class="chip radio" data-pub="adulto">🍷 Adultos</button>
-            </div>
             <button class="btn grande bloco" id="comecar">Começar 🎉</button>
           </div>`}
         ${F.arquivo().length ? '<button class="btn fantasma" id="antigas">📜 Noites anteriores</button>' : ""}
       </div>`, { titulo: "", voltar: false });
-    let pub = "livre";
-    F.$$("[data-pub]", main).forEach((b) => b.onclick = () => { pub = b.dataset.pub; F.$$("[data-pub]", main).forEach((x) => x.classList.toggle("ativo", x === b)); });
     const c = F.$("#continuar", main);
     if (c) c.onclick = () => H.menu();
     const nv = F.$("#nova", main);
@@ -46,7 +39,7 @@
       H.inicio();
     };
     const cm = F.$("#comecar", main);
-    if (cm) cm.onclick = () => { F.novaNoite(pub); H.jogadores(true); };
+    if (cm) cm.onclick = () => { F.novaNoite(); H.jogadores(true); };
     const an = F.$("#antigas", main);
     if (an) an.onclick = () => H.antigas();
   };
@@ -79,13 +72,16 @@
         <form class="linha" id="form" autocomplete="off">
           <input class="entrada" id="nome" maxlength="12" placeholder="Nome (até 12 letras)" style="flex:1; min-width:180px">
           <button class="btn" type="submit">+ Adicionar</button>
+          <button class="btn sec" type="button" id="bot" title="Jogador automático para testar os jogos sozinho">🤖 Adicionar bot</button>
         </form>
+        ${lista.some((j) => j.bot) ? '<p class="mudo pequeno">🤖 Os bots jogam sozinhos no que acontece no tablet (ver a carta, votar em segredo, desenhar, agir à noite, tocar letras). O que é falado ou feito com gestos, você faz por eles.</p>' : ""}
         <div class="lista-jog">
           ${lista.map((j, i) => `<div class="item-jog ${j.ativo ? "" : "inativo"}">
               <span class="ordem">${j.ativo ? lista.filter((x) => x.ativo).indexOf(j) + 1 : "–"}</span>
               <button class="mini-btn" data-editar="${j.id}" style="padding:0;border:none;background:none">${F.pill(j)}</button>
               <span class="nome"></span>
-              ${j.chegouAgora ? '<span class="selo">chegou agora</span>' : ""}
+              ${j.bot ? '<span class="selo" style="background:var(--surface-2);color:var(--text-muted)">🤖 bot</span>' : ""}
+              ${j.chegouAgora && !j.bot ? '<span class="selo">chegou agora</span>' : ""}
               ${!j.ativo ? '<span class="selo" style="background:var(--surface-2);color:var(--text-muted)">foi embora</span>' : ""}
               <button class="mini-btn" data-sobe="${j.id}" ${i === 0 ? "disabled" : ""} aria-label="Subir">▲</button>
               <button class="mini-btn" data-desce="${j.id}" ${i === lista.length - 1 ? "disabled" : ""} aria-label="Descer">▼</button>
@@ -108,6 +104,7 @@
       F.$("#nome").focus();
       void j;
     };
+    F.$("#bot", main).onclick = () => { F.addBot(); F.som("pop"); H.jogadores(primeiraVez); };
     const mover = (id, d) => {
       const arr = F.noite.jogadores, i = arr.findIndex((j) => j.id === id), k = i + d;
       if (k < 0 || k >= arr.length) return;
@@ -181,7 +178,7 @@
           </button>`).join("")}
       </div>
       <div class="linha" style="justify-content:center"><button class="btn fantasma" id="sair">🌙 Encerrar a noite</button></div>`,
-      { titulo: "Jogos de Festa", voltar: false, extraTopo: `<span class="mudo pequeno">${F.noite.publico === "adulto" ? "🍷 Adultos" : "👨‍👩‍👧 Família"}</span>` });
+      { titulo: "Jogos de Festa", voltar: false });
     F.$$("[data-jogo]", main).forEach((b) => b.onclick = () => {
       const g = F.jogos.find((x) => x.id === b.dataset.jogo);
       F.limparSessao();

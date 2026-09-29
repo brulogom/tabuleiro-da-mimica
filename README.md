@@ -183,8 +183,9 @@ A pasta `festa/` é o app de vários jogos, seguindo as especificações dos arq
 | Telefone sem fio desenhado | `festa/js/jogos/telefone.js` |
 | Cidade Dorme | `festa/js/jogos/cidade-dorme.js` |
 
-- **Conteúdo** (baralhos, temas, cartas, categorias, frases) fica em `festa/conteudo/*.js`, um arquivo por jogo. Cada item tem `publico: "livre"` ou `"adulto"` (o modo Adultos é escolhido ao começar a noite).
+- **Conteúdo** (baralhos, temas, cartas, categorias, frases) fica em `festa/conteudo/*.js`, um arquivo por jogo. Não há filtro de público: todo o conteúdo entra em todas as noites (o campo `publico` dos itens ficou só como marcação).
 - **Abrir no computador:** dá para abrir `festa/index.html` direto no navegador. Para testar o app completo (com a mímica), rode `node build-app.js` e sirva a pasta `docs/`.
 - **Testes:** `node festa/testes.js` (empates da tabela de pontos, totais, validação do `registrarPartida` e justiça do sorteio com 10 mil sorteios).
 - **Tudo fica salvo no aparelho** (localStorage): a noite em andamento, as 10 últimas noites encerradas, as configurações de cada jogo e as cartas removidas com 🚫.
 - **Ainda não integrado:** a Mímica não envia resultado para o placar geral (as equipes dela não são ligadas aos jogadores da noite). Dá para lançar os pontos com "± Ajuste" no placar.
+- **Bots para testar sozinho:** em 👥 Jogadores, o botão "🤖 Adicionar bot" cria jogadores automáticos. Eles jogam sozinhos no que acontece no tablet: passam pela tela de privacidade, votam em segredo (Impostor e Cidade Dorme), agem à noite quando todos os que acordam são bots, escrevem/rabiscam/adivinham no Telefone sem fio e tocam letras na Roda das letras. O que é falado ou feito com gestos (pistas, mímica, Quem sou eu?, Palavra proibida) fica por sua conta. Para tirar um bot, toque nele → Excluir (ou "Foi embora", se ele já jogou).

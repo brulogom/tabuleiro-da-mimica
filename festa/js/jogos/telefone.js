@@ -239,8 +239,34 @@
           F.$("#ok", area).onclick = () => { const v = inp.value.trim(); if (!v) { F.toast("Escreva o que você acha que é."); return; } fim(v); };
           inp.addEventListener("keydown", (e) => { if (e.key === "Enter") F.$("#ok", area).click(); });
         },
+        bot: (pronto) => {
+          if (tipo === "frase") concluir(sortearFrase());
+          else if (tipo === "desenho") concluir(rabiscoDeBot());
+          else concluir(F.sortear((window.CONTEUDO.telefone || []).filter((f) => F.publicoOk(f))).texto);
+          pronto();
+        },
         aoConcluir: () => passo(cor),
       });
+    }
+
+    // Desenho de bot: rabiscos, formas e um robozinho, só para a corrente seguir.
+    function rabiscoDeBot() {
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const x = c.getContext("2d");
+      x.fillStyle = "#fff"; x.fillRect(0, 0, W, H);
+      x.lineCap = x.lineJoin = "round";
+      const r = (n) => F.randInt(n);
+      for (let i = 0; i < 6; i++) {
+        x.strokeStyle = CORES[r(CORES.length)][0];
+        x.lineWidth = ESPESSURAS[r(3)][0];
+        x.beginPath();
+        if (i % 2) { x.arc(150 + r(900), 150 + r(600), 40 + r(160), 0, Math.PI * 2); }
+        else { x.moveTo(r(W), r(H)); for (let k = 0; k < 3; k++) x.bezierCurveTo(r(W), r(H), r(W), r(H), r(W), r(H)); }
+        x.stroke();
+      }
+      x.font = "160px serif"; x.textAlign = "center"; x.fillText("🤖", W - 150, H - 80);
+      return c.toDataURL("image/jpeg", 0.82);
     }
 
     function revelar(cor) {

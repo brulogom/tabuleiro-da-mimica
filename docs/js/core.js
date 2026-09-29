@@ -94,6 +94,17 @@
     F.salvar();
     return j;
   };
+  // Bots: jogadores de mentira para testar os jogos sozinho. Nas etapas no tablet
+  // (ver carta, votar em segredo, desenhar, agir à noite, tocar letras) eles jogam sozinhos.
+  F.addBot = () => {
+    let n = 1;
+    while (F.todos().some((j) => j.nome === "Bot " + n)) n += 1;
+    const j = F.addJogador("Bot " + n, null, "🤖");
+    j.bot = true;
+    F.salvar();
+    return j;
+  };
+  F.ehBot = (j) => !!(j && (typeof j === "string" ? (F.jog(j) || {}).bot : j.bot));
   F.pill = (j, extra) => {
     if (!j) return "";
     const txt = F.contraste(j.cor);
@@ -102,10 +113,9 @@
   F.bolaGrande = (j) => `<div class="bola-grande" style="background:${j.cor};color:${F.contraste(j.cor)}">${j.emoji ? F.esc(j.emoji) : F.esc(j.nome.charAt(0).toUpperCase())}</div>`;
 
   // ================= conteúdo =================
-  F.publicoOk = (item, deck) => {
-    const p = (item && item.publico) || (deck && deck.publico) || "livre";
-    return p === "livre" || (F.noite && F.noite.publico === "adulto");
-  };
+  // Sem filtro de público: todo o conteúdo entra em todas as noites.
+  // (O campo "publico" dos arquivos de conteúdo fica só como marcação.)
+  F.publicoOk = () => true;
   F.banida = (jogo, chave) => !!(F.prefs.banidas[jogo] && F.prefs.banidas[jogo].includes(chave));
   F.banir = (jogo, chave) => {
     F.prefs.banidas[jogo] = F.prefs.banidas[jogo] || [];
@@ -492,7 +502,20 @@
       o.montar(F.$("#privArea", main), () => { F.som("toque"); o.aoConcluir && o.aoConcluir(); });
       F.aoPausar = () => { o.aoPausarInteracao && o.aoPausarInteracao(); neutra(); };
     }
-    neutra();
+    // Vez de um bot: mostra que ele está jogando e segue sozinho. No modo "interagir",
+    // o jogo passa o.bot(pronto) com a jogada automática; sem ela, a pessoa joga pelo bot.
+    function vezDoBot() {
+      const interativo = o.modo === "interagir";
+      if (interativo && !o.bot) { neutra(); return; }
+      F.mostrar(`<div class="priv">${F.bolaGrande(j)}<div class="enorme" style="color:${o.escura ? "#fff" : "inherit"}">${F.esc(j.nome.toUpperCase())}</div>
+          <p class="passe">🤖 ${interativo ? "está jogando…" : "já viu a carta"}</p></div>`, cfgTela);
+      F.aoPausar = null;
+      F.timeout(() => {
+        if (interativo) o.bot(() => { o.aoConcluir && o.aoConcluir(); });
+        else o.aoConcluir && o.aoConcluir();
+      }, interativo ? 900 : 650);
+    }
+    if (j.bot) vezDoBot(); else neutra();
     return { neutra };
   };
 

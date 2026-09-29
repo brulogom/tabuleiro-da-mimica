@@ -230,6 +230,12 @@
         };
         render();
         if (!agentes.length) tf(() => { acao.innerHTML = ""; resolve(null); }, aleat(8000, 15000));
+        else if (agentes.every((a) => a.bot)) {
+          // Só bots acordados: escolhem sozinhos, com um tempo parecido com o de uma pessoa.
+          const validas = opcoes.filter((j) => !(e.papel === "medico" && j.id === P.ultimoProtegido));
+          tf(() => { if (!validas.length) { acao.innerHTML = ""; resolve(null); return; } sel = F.sortear(validas).id; render(); }, aleat(2500, 5000));
+          tf(() => { if (sel) { acao.innerHTML = ""; resolve(sel); } }, aleat(6000, 7500));
+        }
       });
       if (escolha) {
         if (e.papel === "assassino") reg.ataque = escolha;
@@ -348,6 +354,12 @@
               if (!(await F.confirmar(id ? `Votar em ${F.nome(id)}?` : "Votar em ninguém?", "", { sim: "Votar" }))) return;
               votos[id] += 1; pronto();
             });
+          },
+          bot: (pronto) => {
+            // Bot assassino não vota em parceiro; os outros votam em qualquer um (ou em ninguém, às vezes).
+            const ops = candidatos.filter((id) => id !== el.id && !(P.papel[el.id] === "assassino" && P.papel[id] === "assassino"));
+            const v = !ops.length || F.randInt(6) === 0 ? "" : F.sortear(ops);
+            votos[v] += 1; pronto();
           },
           aoConcluir: () => { i += 1; prox(); },
         });
